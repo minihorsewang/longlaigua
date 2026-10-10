@@ -16,7 +16,6 @@ const ORDER_API_URL = 'https://script.google.com/macros/s/AKfycbxTGhvRYtE21u79IU
 
 const ANNOUNCEMENTS = [
   '週年慶刮刮樂開跑！消費滿 500 元送刮刮卡一張',
-  '加入會員，線上刮刮卡中獎點數自動入帳',
   '全館滿 NT$1,000 免運費',
 ];
 
@@ -24,7 +23,7 @@ const EVENTS = [
   { id: 'e1', title: '週年慶刮刮樂', emoji: '🎉', c1: '#d9875a', c2: '#8a4a2b',
     desc: '活動期間消費滿 500 元送刮刮卡一張，頭獎 NT$10,000 現金！', start: '2026-10-01', end: '2026-10-31' },
   { id: 'e2', title: '會員日點數 2 倍送', emoji: '💎', c1: '#3f86c6', c2: '#174a7c',
-    desc: '每月 8 號會員日，線上刮刮卡中獎點數加倍。', start: '2026-10-01', end: '2026-12-31' },
+    desc: '每月 8 號會員日，會員點數加倍。', start: '2026-10-01', end: '2026-12-31' },
   { id: 'e3', title: '雙 11 加碼刮', emoji: '🛒', c1: '#d9434b', c2: '#7f1d24',
     desc: '11/1–11/11 下單即贈加碼刮刮卡，最高再送 1,111 點。', start: '2026-11-01', end: '2026-11-11' },
   { id: 'e4', title: '中秋限定刮刮卡', emoji: '🥮', c1: '#c99a6b', c2: '#6b4a2e',
@@ -69,14 +68,6 @@ const WINNERS = [
   { name: '蔡*玲', prize: '三獎 NT$500', event: 'e4', date: '2026-09-18' },
 ];
 
-const MINI_APPS = [
-  { id: 'scratch', name: '線上刮刮卡', emoji: '🎫', ready: true },
-  { id: 'profit', name: '效益試算', emoji: '📊', ready: true, href: '#mini/profit' },
-  { id: 'wheel', name: '幸運轉盤', emoji: '🎡' },
-  { id: 'checkin', name: '每日簽到', emoji: '📅' },
-  { id: 'redeem', name: '序號兌獎', emoji: '🔑' },
-];
-
 // 效益試算的預設值（依「刮刮卡娃娃機獲利試算_基礎計算邏輯」測試案例 1）
 const PROFIT_DEFAULTS = {
   cards: 80,
@@ -94,15 +85,6 @@ const PROFIT_DEFAULTS = {
   runs: '30',
 };
 const CARD_PRESETS = [40, 80, 120, 160, 240];
-
-// 線上刮刮卡獎項：weight 越大越容易抽中
-const PRIZES = [
-  { label: '銘謝惠顧', weight: 50 },
-  { label: '10 點', points: 10, weight: 30 },
-  { label: '50 點', points: 50, weight: 14 },
-  { label: '200 點', points: 200, weight: 5 },
-  { label: '1,000 點', points: 1000, weight: 1 },
-];
 
 /* =========================================================
    狀態：示範版存在瀏覽器 localStorage
@@ -217,9 +199,7 @@ const DRAWER_TABS = [
 
 const QUICK_LINKS = [
   { href: '#events', name: '活動專區', en: 'Events', emoji: '🎉', c1: '#d9434b', c2: '#7f1d24' },
-  { href: '#winners', name: '中獎名單', en: 'Winners', emoji: '🏆', c1: '#e0a526', c2: '#8a5a00' },
-  { href: '#mini', name: '線上刮刮卡', en: 'Scratch & Win', emoji: '🎫', c1: '#d9875a', c2: '#8a4a2b' },
-];
+  { href: '#winners', name: '中獎名單', en: 'Winners', emoji: '🏆', c1: '#e0a526', c2: '#8a5a00' },];
 
 let drawerTab = 'all';
 
@@ -339,7 +319,6 @@ function renderHome() {
         <h2>${ev.title}</h2>
         <p>${ev.desc}</p>
         <div class="actions">
-          ${eventStatus(ev).key === 'live' ? '<a class="btn btn-gold" href="#mini">立即線上刮</a>' : ''}
           <a class="btn btn-ghost" href="#events">活動詳情</a>
         </div>
       </div>
@@ -354,7 +333,7 @@ function renderHome() {
         <span class="cat-eyebrow">LUCKY SCRATCH · 貓貓的好運小舖</span>
         <h1 id="cat-hero-title">把可愛帶回家，<br>把<span>好運刮出來。</span></h1>
         <p>一隻招財貓，一份小驚喜。<br>和龍來刮一起，收藏生活裡的大吉大利。</p>
-        <div class="actions"><a class="btn btn-primary" href="#products">逛逛好運商品 ↗</a><a class="btn btn-outline" href="#mini">試試手氣</a></div>
+        <div class="actions"><a class="btn btn-primary" href="#products">逛逛好運商品 ↗</a></div>
         <div class="cat-hero-note">貓貓迎春 <span>✦</span> 蔚藍海洋 <span>✦</span> 每天都有小期待</div>
       </div>
       <div class="cat-hero-art">
@@ -516,53 +495,10 @@ function winnerRow(w) {
 }
 
 /* =========================================================
-   小程式（含線上刮刮卡）
-   ========================================================= */
-
-function renderMini(sub) {
-  if (sub === 'profit') {
-    renderProfit();
-    return;
-  }
-  const tiles = MINI_APPS.map((app) => `
-    <button class="mini-tile ${app.ready ? '' : 'soon'}" data-action="open-mini" data-id="${app.id}">
-      <span class="mini-icon" aria-hidden="true">${app.emoji}</span>
-      ${app.name}
-      ${app.ready ? '' : '<small>即將推出</small>'}
-    </button>`).join('');
-
-  $('#page-mini').innerHTML = `
-    ${pageHead('小程式', '好玩又有獎的小工具，天天來玩拿點數')}
-    <div class="mini-grid">${tiles}</div>
-
-    <section class="panel scratch-panel" id="scratch-panel">
-      <h2>🎫 線上刮刮卡</h2>
-      <p class="muted">用手指或滑鼠刮開黑色塗層，看看今天的手氣！</p>
-      <div class="scratch-card">
-        <div class="scratch-result" id="scratch-result"></div>
-        <canvas id="scratch-canvas" aria-label="刮刮卡塗層，按住拖曳即可刮開"></canvas>
-      </div>
-      <p class="scratch-msg" id="scratch-msg" aria-live="polite"></p>
-      <button class="btn btn-light" data-action="scratch-again">再刮一張</button>
-    </section>`;
-
-  scratch.start($('#scratch-canvas'));
-}
-
-function openMini(id) {
-  const app = MINI_APPS.find((a) => a.id === id);
-  if (app.href) {
-    location.hash = app.href;
-  } else if (app.ready) {
-    $('#scratch-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  } else {
-    toast(`「${app.name}」即將推出，敬請期待！`);
-  }
-}
-
-/* ---------- 效益試算（給台主用的檯面獲利試算）----------
+   小程式：效益試算（給台主用的檯面獲利試算）
    公式依「刮刮卡娃娃機獲利試算_基礎計算邏輯」v1.0：
-   期望停止刮數 = 獎數 ×（總刮數 + 1）÷（獎數 + 1），即隨機排列中最後一個獎平均落在第幾刮 */
+   期望停止刮數 = 獎數 ×（總刮數 + 1）÷（獎數 + 1），即隨機排列中最後一個獎平均落在第幾刮
+   ========================================================= */
 
 const num = (v) => {
   const n = Number(v);
@@ -616,7 +552,7 @@ function calcProfit(p) {
   };
 }
 
-function renderProfit() {
+function renderMini() {
   const p = state.profit;
   const presetChips = CARD_PRESETS.map((n) => `
     <button type="button" class="chip ${!p.customCards && num(p.cards) === n ? 'active' : ''}"
@@ -630,7 +566,6 @@ function renderProfit() {
     </label>`;
 
   $('#page-mini').innerHTML = `
-    <a class="back-link" href="#mini">← 回小程式</a>
     ${pageHead('📊 效益試算', '輸入版型、獎項與成本，用期望值算出建議均出與每月獲利')}
     <div class="profit-layout">
       <form id="profit-form" class="profit-inputs" autocomplete="off">
@@ -843,7 +778,7 @@ function setProfitCards(value) {
     p.cards = Number(value);
   }
   save('profit');
-  renderProfit();
+  renderMini();
 }
 
 function changePrizeList(kind, index) {
@@ -858,7 +793,7 @@ function changePrizeList(kind, index) {
 function resetProfit() {
   state.profit = structuredClone(PROFIT_DEFAULTS);
   save('profit');
-  renderProfit();
+  renderMini();
   toast('已恢復範例數值');
 }
 
@@ -885,134 +820,6 @@ function generateNumbers() {
     <p class="muted small">從 1～${total} 中抽出 ${count} 個號碼：</p>
     <div class="rng-numbers">${picked.map((n) => `<span>${n}</span>`).join('')}</div>`;
 }
-
-function drawPrize() {
-  const total = PRIZES.reduce((sum, p) => sum + p.weight, 0);
-  let r = Math.random() * total;
-  return PRIZES.find((p) => (r -= p.weight) < 0) ?? PRIZES[0];
-}
-
-const scratch = {
-  BRUSH: 34,
-  REVEAL_RATIO: 0.5,
-
-  start(canvas) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d', { willReadFrequently: true });
-    this.drawing = false;
-
-    canvas.addEventListener('pointerdown', (e) => {
-      if (this.done) return;
-      this.drawing = true;
-      canvas.setPointerCapture(e.pointerId);
-      this.last = this.point(e);
-      this.ctx.beginPath();
-      this.ctx.arc(this.last.x, this.last.y, this.BRUSH / 2, 0, Math.PI * 2);
-      this.ctx.fill();
-    });
-    canvas.addEventListener('pointermove', (e) => {
-      if (!this.drawing) return;
-      const p = this.point(e);
-      this.ctx.beginPath();
-      this.ctx.moveTo(this.last.x, this.last.y);
-      this.ctx.lineTo(p.x, p.y);
-      this.ctx.stroke();
-      this.last = p;
-    });
-    const end = () => {
-      if (!this.drawing) return;
-      this.drawing = false;
-      this.checkProgress();
-    };
-    canvas.addEventListener('pointerup', end);
-    canvas.addEventListener('pointercancel', end);
-
-    this.reset();
-  },
-
-  // 把滑鼠位置換算成畫布座標（視窗縮放後依然準確）
-  point(e) {
-    const r = this.canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - r.left) * (this.w / r.width),
-      y: (e.clientY - r.top) * (this.h / r.height),
-    };
-  },
-
-  reset() {
-    const { canvas, ctx } = this;
-    const { width, height } = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    this.w = width;
-    this.h = height;
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    // 黑色刮層（跟實體刮刮卡一樣）
-    ctx.globalCompositeOperation = 'source-over';
-    const coating = ctx.createLinearGradient(0, 0, width, height);
-    coating.addColorStop(0, '#2b2b2b');
-    coating.addColorStop(0.5, '#3d3d3d');
-    coating.addColorStop(1, '#151515');
-    ctx.fillStyle = coating;
-    ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = '#f2b630';
-    ctx.font = 'bold 22px "Noto Sans TC", "Microsoft JhengHei", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('✦ 刮開這裡 ✦', width / 2, height / 2);
-
-    // 之後的筆畫改成「擦掉」
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = this.BRUSH;
-
-    this.prize = drawPrize();
-    this.done = false;
-    canvas.classList.remove('cleared');
-
-    const result = $('#scratch-result');
-    result.classList.toggle('win', Boolean(this.prize.points));
-    result.innerHTML = this.prize.points
-      ? `<small>恭喜獲得</small>${this.prize.label}`
-      : `${this.prize.label}<small>下次會更好</small>`;
-    $('#scratch-msg').textContent = '';
-  },
-
-  checkProgress() {
-    const { data } = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-    let cleared = 0;
-    let sampled = 0;
-    for (let i = 3; i < data.length; i += 32) { // 每 8 個像素抽樣一次 alpha
-      sampled++;
-      if (data[i] === 0) cleared++;
-    }
-    if (cleared / sampled >= this.REVEAL_RATIO) this.reveal();
-  },
-
-  reveal() {
-    this.done = true;
-    this.canvas.classList.add('cleared');
-    const msg = $('#scratch-msg');
-    const { points, label } = this.prize;
-
-    if (!points) {
-      msg.textContent = '沒中也別灰心，再刮一張試試！';
-      return;
-    }
-    const member = currentMember();
-    if (member) {
-      member.points += points;
-      member.prizes.unshift({ label, date: todayStr() });
-      save('members');
-      msg.textContent = `🎉 恭喜！${label}已存入會員帳戶`;
-    } else {
-      msg.innerHTML = `🎉 恭喜中獎！<a href="#member">登入會員</a>才能領取點數喔`;
-    }
-  },
-};
 
 /* =========================================================
    購物車（右側滑出）與結帳
@@ -1462,7 +1269,6 @@ function renderLogin() {
         <button class="btn-social btn-google" data-action="sign-in" data-provider="google">${GOOGLE_ICON}使用 Google 登入</button>
       </div>
       <ul class="perks">
-        <li>🎫 線上刮刮卡中獎點數自動入帳</li>
         <li>🧾 訂單紀錄隨時查詢</li>
         <li>💎 會員日點數 2 倍送</li>
       </ul>
@@ -1518,7 +1324,7 @@ function renderMember() {
   const prizeList = member.prizes.length
     ? `<ul class="list">${member.prizes.map((p) => `
         <li><span>🎉 ${p.label}</span><span class="muted small">${p.date}</span></li>`).join('')}</ul>`
-    : emptyBox('🎫', '還沒有中獎紀錄', '<a class="btn btn-light btn-sm" href="#mini">去刮刮看</a>');
+    : emptyBox('🎫', '還沒有中獎紀錄');
   const provider = PROVIDERS[member.provider];
 
   el.innerHTML = `
@@ -1589,13 +1395,11 @@ const ACTIONS = {
   'open-cart': () => openCart(),
   'close-cart': closeCart,
   'event-filter': (el) => { eventFilter = el.dataset.value; renderEvents(); },
-  'open-mini': (el) => openMini(el.dataset.id),
   'profit-cards': (el) => setProfitCards(el.dataset.value),
   'profit-add': (el) => changePrizeList(el.dataset.kind),
   'profit-remove': (el) => changePrizeList(el.dataset.kind, el.dataset.index),
   'profit-reset': resetProfit,
   'rng': generateNumbers,
-  'scratch-again': () => scratch.reset(),
   'open-drawer': openDrawer,
   'drawer-tab': (el) => setDrawerTab(el.dataset.id),
   'close-drawer': closeDrawer,
