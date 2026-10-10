@@ -1,6 +1,7 @@
 # 只上傳網站檔案與 Apps Script，其餘（內部規劃、對話紀錄、打包檔、參考圖）都留在本機
 /*
 !/.gitignore
+!/README.md
 !/index.html
 !/style.css
 !/app.js
