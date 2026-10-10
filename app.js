@@ -6,7 +6,7 @@
    留空 = 示範模式，訂單只存在這台瀏覽器。
    ========================================================= */
 
-const ORDER_API_URL = '';
+const ORDER_API_URL = 'https://script.google.com/macros/s/AKfycbxTGhvRYtE21u79IUoljpcIFvCSotKu40DmX0e-W9wVP6CQqk69MMWXo3AuL2wFN1zilw/exec';
 
 /* =========================================================
    資料區：目前都是範例內容，之後接後端時改成從 API 取得即可
