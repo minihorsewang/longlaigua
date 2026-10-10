@@ -663,7 +663,8 @@ main.container { padding-top: 20px; padding-bottom: 56px; min-height: 70vh; }
 }
 
 /* ---------- 小程式 ---------- */
-.mini-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (min-width: 640px) { .mini-grid { grid-template-columns: repeat(5, 1fr); } }
 .mini-tile {
   display: flex;
   flex-direction: column;
@@ -683,6 +684,78 @@ main.container { padding-top: 20px; padding-bottom: 56px; min-height: 70vh; }
 .mini-tile.soon { color: var(--muted); }
 .mini-tile small { font-size: .7rem; font-weight: 400; }
 .mini-icon { font-size: 2rem; line-height: 1.2; }
+
+/* ---------- 效益試算 ---------- */
+.back-link { display: inline-block; margin-bottom: 8px; color: var(--brand-dark); font-size: .9rem; }
+.back-link:hover { text-decoration: underline; }
+.profit-layout { display: grid; gap: 16px; align-items: start; }
+@media (min-width: 960px) { .profit-layout { grid-template-columns: 380px 1fr; } }
+.profit-inputs, .profit-results { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.profit-inputs .panel { display: flex; flex-direction: column; gap: 12px; }
+.profit-inputs .panel h2, .profit-results .panel h2, .results-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1rem; }
+.profit-inputs h2 small, .profit-results h2 small, .results-title small { color: var(--muted); font-size: .78rem; font-weight: 400; }
+.profit-inputs .chips { margin: 0; }
+.profit-inputs .hint, .rng-panel .hint { margin: -4px 0 0; color: var(--muted); font-size: .78rem; }
+.step-no { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--brand); color: #fff; font-size: .72rem; }
+.field-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field input:not([type]), .field input[type="number"] { width: 100%; min-width: 0; }
+
+.unit-input { display: flex; align-items: center; border: 1px solid #ead2bf; border-radius: 10px; background: #fff; font-weight: 400; overflow: hidden; }
+.unit-input:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.unit-input > span { flex: none; padding: 0 8px; color: var(--muted); font-size: .85rem; }
+.unit-input input, .field .unit-input input { flex: 1; min-width: 0; width: 100%; padding: 10px 8px; border: 0; border-radius: 0; background: none; box-shadow: none; outline: none; }
+.unit-input > span + input { padding-left: 0; }
+
+.prize-panel.gold { border-top: 3px solid var(--gold); }
+.prize-panel.blue { border-top: 3px solid var(--blue); }
+.prize-row { display: grid; grid-template-columns: 26px 1fr 80px 70px 32px; gap: 6px; align-items: center; }
+.prize-row > input { min-width: 0; padding: 9px 10px; border: 1px solid #ead2bf; border-radius: 10px; background: #fff; }
+.prize-row > input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.prize-row .unit-input input { padding: 9px 4px; }
+.prize-row .unit-input > span { padding: 0 4px; }
+.prize-row .icon-btn { width: 32px; height: 32px; color: var(--muted); }
+.row-no { color: var(--muted); font-size: .8rem; }
+.prize-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+
+.profit-hero { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; padding: 18px 22px; border: 2px solid var(--gold); border-radius: var(--radius); background: linear-gradient(135deg, #fff8e6, #fdf1dc); }
+.hero-num { display: flex; flex-direction: column; padding-right: 24px; border-right: 1px solid #f0d9a8; }
+.hero-num small { color: var(--ink-soft); font-size: .78rem; }
+.hero-num strong { color: var(--brand-dark); font-size: 2.4rem; line-height: 1.1; }
+.hero-text { flex: 1; min-width: 200px; font-size: .92rem; }
+.hero-text p { margin: 4px 0 0; color: var(--ink-soft); }
+.hero-text p b { color: var(--accent); }
+
+.mode-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.mode-card { padding: 16px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); border-top: 3px solid var(--line); }
+.mode-card h3 { margin: 0 0 8px; font-size: .95rem; }
+.mode-card.gold { border-top-color: var(--gold); }
+.mode-card.blue { border-top-color: var(--blue); }
+.mode-card.purple { border-top-color: #8a63c8; }
+.mode-card.empty { display: grid; place-items: center; min-height: 140px; color: var(--muted); font-size: .85rem; text-align: center; border: 1.5px dashed var(--line); background: transparent; box-shadow: none; }
+.pos { color: #1f7a6f; font-weight: 700; }
+.neg { color: var(--accent); font-weight: 700; }
+
+.table-wrap { overflow-x: auto; margin: 0 -4px; }
+.prize-table { width: 100%; min-width: 460px; border-collapse: collapse; font-size: .88rem; }
+.prize-table th { padding: 8px; border-bottom: 2px solid var(--line); color: var(--muted); font-weight: 600; text-align: left; }
+.prize-table td { padding: 9px 8px; border-bottom: 1px solid var(--line); }
+.prize-table td small { color: var(--muted); }
+.dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; }
+.dot.gold { background: var(--gold); }
+.dot.blue { background: var(--blue); }
+
+.advice { margin: 0; padding: 0; list-style: none; font-size: .9rem; }
+.advice li { position: relative; padding: 10px 0 10px 30px; border-bottom: 1px solid var(--line); }
+.advice li:last-child { border-bottom: 0; }
+.advice li::before { position: absolute; left: 0; top: 10px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; color: #fff; font-size: .75rem; font-weight: 800; }
+.advice li.good::before { content: '✓'; background: #1f9a8a; }
+.advice li.warn::before { content: '!'; background: var(--accent); }
+
+.rng-panel { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.rng-panel h2 { margin: 0; font-size: 1rem; }
+.rng-panel p { margin: 0; }
+.rng-numbers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.rng-numbers span { display: grid; place-items: center; min-width: 40px; height: 40px; padding: 0 6px; border-radius: 10px; background: var(--brand-soft); color: var(--brand-dark); font-weight: 800; }
 
 .scratch-panel { margin-top: 20px; padding: 24px 16px; text-align: center; scroll-margin-top: calc(var(--header-h) + 12px); }
 .scratch-panel h2 { margin-bottom: 4px; }

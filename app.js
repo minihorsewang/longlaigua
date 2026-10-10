@@ -71,10 +71,29 @@ const WINNERS = [
 
 const MINI_APPS = [
   { id: 'scratch', name: '線上刮刮卡', emoji: '🎫', ready: true },
+  { id: 'profit', name: '效益試算', emoji: '📊', ready: true, href: '#mini/profit' },
   { id: 'wheel', name: '幸運轉盤', emoji: '🎡' },
   { id: 'checkin', name: '每日簽到', emoji: '📅' },
   { id: 'redeem', name: '序號兌獎', emoji: '🔑' },
 ];
+
+// 效益試算的預設值（依「刮刮卡娃娃機獲利試算_基礎計算邏輯」測試案例 1）
+const PROFIT_DEFAULTS = {
+  cards: 80,
+  customCards: false,
+  spend: '',
+  itemCost: '5',
+  major: [{ name: 'A 獎', cost: '100', qty: '2' }],
+  minor: [{ name: 'B 獎', cost: '5', qty: '20' }],
+  fullName: '',
+  fullCost: '',
+  clearName: '',
+  clearCost: '',
+  rent: '6000',
+  target: '300',
+  runs: '30',
+};
+const CARD_PRESETS = [40, 80, 120, 160, 240];
 
 // 線上刮刮卡獎項：weight 越大越容易抽中
 const PRIZES = [
@@ -112,6 +131,7 @@ const state = {
   cart: load('cart', []),         // [{ id, qty }]
   orders: load('orders', []),     // [{ id, date, items, total, name, phone, delivery, address, note }]
   lastPickup: load('lastPickup', null), // 上次填的 7-11 取貨資料，下次自動帶入
+  profit: load('profit', structuredClone(PROFIT_DEFAULTS)), // 效益試算上次輸入的內容
   members: load('members', {}),               // { 'line:xxx': { provider, name, phone, email, points, prizes, joined } }
   memberSession: load('memberSession', null), // 目前登入的會員 key
   demoUids: load('demoUids', {}),             // 示範模式用的假 LINE / Google 帳號 ID
@@ -499,7 +519,11 @@ function winnerRow(w) {
    小程式（含線上刮刮卡）
    ========================================================= */
 
-function renderMini() {
+function renderMini(sub) {
+  if (sub === 'profit') {
+    renderProfit();
+    return;
+  }
   const tiles = MINI_APPS.map((app) => `
     <button class="mini-tile ${app.ready ? '' : 'soon'}" data-action="open-mini" data-id="${app.id}">
       <span class="mini-icon" aria-hidden="true">${app.emoji}</span>
@@ -527,11 +551,339 @@ function renderMini() {
 
 function openMini(id) {
   const app = MINI_APPS.find((a) => a.id === id);
-  if (app.ready) {
+  if (app.href) {
+    location.hash = app.href;
+  } else if (app.ready) {
     $('#scratch-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
     toast(`「${app.name}」即將推出，敬請期待！`);
   }
+}
+
+/* ---------- 效益試算（給台主用的檯面獲利試算）----------
+   公式依「刮刮卡娃娃機獲利試算_基礎計算邏輯」v1.0：
+   期望停止刮數 = 獎數 ×（總刮數 + 1）÷（獎數 + 1），即隨機排列中最後一個獎平均落在第幾刮 */
+
+const num = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+};
+const prizeQty = (list) => list.reduce((sum, p) => sum + num(p.qty), 0);
+const prizeTotal = (list) => list.reduce((sum, p) => sum + num(p.cost) * num(p.qty), 0);
+const cardsFmt = (n) => `${n.toFixed(1)} 刮`;
+const pctFmt = (n) => `${(n * 100).toFixed(1)}%`;
+const signedMoney = (n) => (n < 0 ? '−' : '') + money(Math.round(Math.abs(n)));
+
+function calcProfit(p) {
+  const total = num(p.cards);
+  const itemCost = num(p.itemCost);
+  const stopAt = (count) => (count > 0 && total > 0 ? (count * (total + 1)) / (count + 1) : total);
+
+  const majorCount = prizeQty(p.major);
+  const allCount = majorCount + prizeQty(p.minor);
+  const majorCost = prizeTotal(p.major);
+  const allCost = majorCost + prizeTotal(p.minor);
+  const clearCost = num(p.clearCost);
+  const fullCost = num(p.fullCost);
+  const target = num(p.target);
+
+  const majorStop = stopAt(majorCount);
+  const suggested = majorStop > 0 ? Math.ceil((target + majorCost + majorStop * itemCost) / majorStop) : 0;
+  const userSpend = num(p.spend);
+  const spend = userSpend > 0 ? userSpend : suggested;
+
+  const mode = (stop, prizeCost) => {
+    const revenue = stop * spend;
+    const goods = stop * itemCost;
+    const profit = revenue - prizeCost - goods;
+    return { stop, revenue, prizeCost, goods, profit, margin: revenue > 0 ? profit / revenue : 0 };
+  };
+  const major = mode(majorStop, majorCost);
+  // 清獎賞：所有大獎＋小獎都出完才送，所以算在全獎模式
+  const all = mode(stopAt(allCount), allCost + clearCost);
+  // 完刮：整版刮完，全部獎項、清獎賞、完刮獎都會送出
+  const full = fullCost > 0 ? mode(total, allCost + clearCost + fullCost) : null;
+
+  const runs = num(p.runs);
+  const rent = num(p.rent);
+  const monthlyGross = major.profit * runs;
+  return {
+    total, majorCount, allCount, target, suggested, spend, userSpend, major, all, full, runs, rent,
+    monthlyRevenue: major.revenue * runs,
+    monthlyGross,
+    monthlyNet: monthlyGross - rent,
+    breakEven: runs > 0 ? rent / runs : 0,
+  };
+}
+
+function renderProfit() {
+  const p = state.profit;
+  const presetChips = CARD_PRESETS.map((n) => `
+    <button type="button" class="chip ${!p.customCards && num(p.cards) === n ? 'active' : ''}"
+      data-action="profit-cards" data-value="${n}">${n} 刮</button>`).join('');
+  const field = (name, label, value, { unit = '$', placeholder = '' } = {}) => `
+    <label class="field">${label}
+      <span class="unit-input">${unit === '$' ? '<span>$</span>' : ''}
+        <input name="${name}" type="number" min="0" inputmode="decimal" value="${escapeHtml(value)}" placeholder="${placeholder}">
+        ${unit !== '$' && unit ? `<span>${unit}</span>` : ''}
+      </span>
+    </label>`;
+
+  $('#page-mini').innerHTML = `
+    <a class="back-link" href="#mini">← 回小程式</a>
+    ${pageHead('📊 效益試算', '輸入版型、獎項與成本，用期望值算出建議均出與每月獲利')}
+    <div class="profit-layout">
+      <form id="profit-form" class="profit-inputs" autocomplete="off">
+        <section class="panel">
+          <h2><span class="step-no">01</span>版型與成本</h2>
+          <div class="chips">${presetChips}
+            <button type="button" class="chip ${p.customCards ? 'active' : ''}" data-action="profit-cards" data-value="custom">自訂</button>
+          </div>
+          ${p.customCards ? field('cards', '自訂總刮數', p.cards, { unit: '刮' }) : ''}
+          <div class="field-row-2">
+            ${field('spend', '均出（選填）', p.spend, { placeholder: '空白則反推' })}
+            ${field('itemCost', '每刮商品成本', p.itemCost)}
+          </div>
+          <p class="hint">均出 = 總營業額 ÷ 實際出貨刮數；每刮商品成本 = 台內商品平均成本</p>
+        </section>
+
+        <section class="panel prize-panel gold">
+          <h2><span class="step-no">02</span>🏆 大獎設定 <small>出完即廢套</small></h2>
+          <div id="prize-major">${prizeRows('major')}</div>
+        </section>
+
+        <section class="panel prize-panel blue">
+          <h2><span class="step-no">03</span>🎁 小獎設定 <small>不影響廢套</small></h2>
+          <div id="prize-minor">${prizeRows('minor')}</div>
+        </section>
+
+        <section class="panel">
+          <h2><span class="step-no">04</span>✨ 特殊獎項 <small>空白不計算</small></h2>
+          <div class="field-row-2">
+            <label class="field">完刮獎名稱<input name="fullName" maxlength="20" value="${escapeHtml(p.fullName)}" placeholder="例：神秘大獎"></label>
+            ${field('fullCost', '完刮獎成本', p.fullCost, { placeholder: '例：500' })}
+          </div>
+          <p class="hint">完刮獎：整版全部刮完才送出，吸引客人刮完最後幾格</p>
+          <div class="field-row-2">
+            <label class="field">清獎賞名稱<input name="clearName" maxlength="20" value="${escapeHtml(p.clearName)}" placeholder="例：清版大禮"></label>
+            ${field('clearCost', '清獎賞成本', p.clearCost, { placeholder: '例：300' })}
+          </div>
+          <p class="hint">清獎賞：大獎＋小獎全部出完後額外贈送，吸引客人拚完小獎</p>
+        </section>
+
+        <section class="panel">
+          <h2><span class="step-no">05</span>🎯 目標設定</h2>
+          ${field('rent', '每月台租', p.rent)}
+          ${field('target', '每版目標獲利（用來反推建議均出）', p.target)}
+          ${field('runs', '預計每月跑幾版', p.runs, { unit: '版' })}
+          <button type="button" class="btn btn-light btn-sm" data-action="profit-reset">恢復範例數值</button>
+        </section>
+      </form>
+
+      <div class="profit-results" id="profit-results" aria-live="polite"></div>
+    </div>
+
+    <section class="panel rng-panel">
+      <h2>🎲 隨機號碼產生器</h2>
+      <p class="muted small">輸入總刮數與獎號數量，一鍵產生不重複的中獎號碼，排版時用來決定獎項位置。</p>
+      <div class="field-row-2">
+        <label class="field">總刮數<input id="rng-total" type="number" min="1" max="1000" inputmode="numeric" value="${num(p.cards) || 80}"></label>
+        <label class="field">獎號數量<input id="rng-count" type="number" min="1" inputmode="numeric" value="${prizeQty(p.major) || 2}"></label>
+      </div>
+      <button type="button" class="btn btn-primary btn-block" data-action="rng">產生號碼</button>
+      <div class="rng-result" id="rng-result"></div>
+    </section>`;
+
+  renderProfitResults();
+}
+
+function prizeRows(kind) {
+  const list = state.profit[kind];
+  const label = kind === 'major' ? '大獎' : '小獎';
+  return `
+    ${list.map((prize, i) => `
+      <div class="prize-row">
+        <span class="row-no">#${i + 1}</span>
+        <input aria-label="${label}名稱" maxlength="20" placeholder="${label}名稱" value="${escapeHtml(prize.name)}"
+          data-kind="${kind}" data-index="${i}" data-field="name">
+        <span class="unit-input"><span>$</span><input aria-label="${label}單價" type="number" min="0" inputmode="decimal"
+          value="${escapeHtml(prize.cost)}" data-kind="${kind}" data-index="${i}" data-field="cost"></span>
+        <span class="unit-input"><input aria-label="${label}數量" type="number" min="0" inputmode="numeric"
+          value="${escapeHtml(prize.qty)}" data-kind="${kind}" data-index="${i}" data-field="qty"><span>個</span></span>
+        <button type="button" class="icon-btn" data-action="profit-remove" data-kind="${kind}" data-index="${i}"
+          aria-label="刪除${escapeHtml(prize.name || label)}">✕</button>
+      </div>`).join('')}
+    <div class="prize-foot">
+      <button type="button" class="btn btn-light btn-sm" data-action="profit-add" data-kind="${kind}">＋ 新增${label}</button>
+      <span class="muted small">共 ${prizeQty(list)} 個 · 成本 ${money(Math.round(prizeTotal(list)))}</span>
+    </div>`;
+}
+
+function renderProfitResults() {
+  const p = state.profit;
+  const r = calcProfit(p);
+  const reached = r.major.profit >= r.target;
+
+  let heroText;
+  if (!r.userSpend) {
+    heroText = `<b>要達到每版獲利 ${money(r.target)}（大獎即停模式）</b><p>建議均出設定為 <b>${money(r.suggested)}</b></p>`;
+  } else if (reached) {
+    heroText = `<b>✅ 目前均出 ${money(r.userSpend)} 已達每版目標獲利 ${money(r.target)}</b>
+      <p>預估每版毛利 ${signedMoney(r.major.profit)}，超出 ${money(Math.round(r.major.profit - r.target))}</p>`;
+  } else {
+    heroText = `<b>⚠️ 目前均出 ${money(r.userSpend)} 尚未達到每版目標獲利 ${money(r.target)}</b>
+      <p>均出需從 ${money(r.userSpend)} 調高至 <b>${money(r.suggested)}</b>（差 ${money(Math.max(0, r.suggested - r.userSpend))}）</p>`;
+  }
+
+  const modeCard = (title, tone, m, extraLabel) => `
+    <article class="mode-card ${tone}">
+      <h3>${title}</h3>
+      <div class="sum-row"><span>期望停止刮數</span><span>${cardsFmt(m.stop)}</span></div>
+      <div class="sum-row"><span>期望營業額</span><span>${money(Math.round(m.revenue))}</span></div>
+      <div class="sum-row"><span>${extraLabel}</span><span>${money(Math.round(m.prizeCost))}</span></div>
+      <div class="sum-row"><span>商品成本</span><span>${money(Math.round(m.goods))}</span></div>
+      <div class="sum-row"><span>毛利率</span><span class="${m.margin < 0.2 ? 'neg' : 'pos'}">${pctFmt(m.margin)}</span></div>
+      <div class="sum-row total"><span>整版毛利</span><span class="${m.profit < 0 ? 'neg' : 'pos'}">${signedMoney(m.profit)}</span></div>
+    </article>`;
+
+  const rangeOf = (qty) => {
+    const q = num(qty);
+    if (!q || !r.total) return '—';
+    const step = (r.total + 1) / (q + 1);
+    return q === 1 ? `約第 ${step.toFixed(1)} 刮` : `${step.toFixed(1)}～${(q * step).toFixed(1)} 刮`;
+  };
+  const prizeTable = [
+    ...p.major.map((x) => ({ ...x, type: '大獎', tone: 'gold' })),
+    ...p.minor.map((x) => ({ ...x, type: '小獎', tone: 'blue' })),
+  ].map((x) => `
+    <tr>
+      <td><i class="dot ${x.tone}"></i>${escapeHtml(x.name || '未命名')}<small> ${x.type}</small></td>
+      <td>${money(num(x.cost))}</td><td>${num(x.qty)}</td>
+      <td>${money(Math.round(num(x.cost) * num(x.qty)))}</td><td>${rangeOf(x.qty)}</td>
+    </tr>`).join('');
+
+  const advice = [];
+  advice.push([r.major.margin >= 0.2, `大獎即停毛利率 ${pctFmt(r.major.margin)}，${r.major.margin >= 0.2 ? '配置良好。' : '偏低，建議檢查獎品成本或均出設定。'}`]);
+  advice.push([r.all.profit >= r.major.profit, `全獎出完模式每版毛利 ${signedMoney(r.all.profit)}，比大獎即停${r.all.profit >= r.major.profit ? '多' : '少'} ${money(Math.round(Math.abs(r.all.profit - r.major.profit)))}。`]);
+  advice.push([r.major.profit >= r.breakEven, `每版過租門檻：至少需獲利 ${money(Math.round(r.breakEven))}（台租 ${money(r.rent)} ÷ ${r.runs} 版），目前每版毛利 ${signedMoney(r.major.profit)}。`]);
+  advice.push([r.monthlyNet >= 0, r.monthlyNet >= 0
+    ? `月預估淨利 ${signedMoney(r.monthlyNet)}（${r.runs} 版 × ${signedMoney(r.major.profit)} − 台租 ${money(r.rent)}）。`
+    : `扣除台租後月淨利 ${signedMoney(r.monthlyNet)}，建議增加版數、提高均出或降低成本。`]);
+  if (r.allCount > r.total) advice.push([false, `獎項總數 ${r.allCount} 個超過總刮數 ${r.total} 刮，請調整配置。`]);
+  if (!r.majorCount) advice.push([false, '尚未設定大獎，大獎即停模式以整版刮完計算。']);
+
+  $('#profit-results').innerHTML = `
+    <div class="profit-hero">
+      <div class="hero-num"><small>建議均出</small><strong>${money(r.suggested)}</strong><small>每刮定價</small></div>
+      <div class="hero-text">${heroText}</div>
+    </div>
+
+    <h2 class="results-title">模式比較 <small>依目前輸入即時計算${r.userSpend ? '' : '，以建議均出試算'}</small></h2>
+    <div class="mode-grid">
+      ${modeCard('🏆 大獎出完即廢套', 'gold', r.major, '大獎成本')}
+      ${modeCard('☀️ 全獎出完', 'blue', r.all, `大獎＋小獎${num(p.clearCost) ? '＋清獎賞' : ''}成本`)}
+      ${r.full
+        ? modeCard(`🎯 完刮${p.fullName ? `（${escapeHtml(p.fullName)}）` : ''}`, 'purple', r.full, '全部獎項＋完刮獎成本')
+        : '<article class="mode-card empty">✨<br>填入完刮獎成本<br>即可啟用完刮分析</article>'}
+    </div>
+
+    <section class="panel">
+      <h2>禮品配置明細</h2>
+      <div class="table-wrap">
+        <table class="prize-table">
+          <thead><tr><th>禮品</th><th>成本</th><th>數量</th><th>小計</th><th>預期出現區間</th></tr></thead>
+          <tbody>${prizeTable || '<tr><td colspan="5" class="muted">尚未設定獎項</td></tr>'}</tbody>
+        </table>
+      </div>
+      <p class="note">預期出現區間：隨機排版時，該獎第一個～最後一個平均落在第幾刮。</p>
+    </section>
+
+    <section class="panel">
+      <h2>月營收試算 <small>大獎即停模式</small></h2>
+      <div class="sum-row"><span>每版期望營業額</span><span>${money(Math.round(r.major.revenue))}</span></div>
+      <div class="sum-row"><span>每版毛利</span><span>${signedMoney(r.major.profit)}</span></div>
+      <div class="sum-row"><span>× 每月版數</span><span>${r.runs} 版</span></div>
+      <div class="sum-row"><span>月營業額</span><span>${money(Math.round(r.monthlyRevenue))}</span></div>
+      <div class="sum-row"><span>月毛利</span><span>${signedMoney(r.monthlyGross)}</span></div>
+      <div class="sum-row"><span>− 月台租</span><span>${money(r.rent)}</span></div>
+      <div class="sum-row total"><span>月淨利</span><span class="${r.monthlyNet < 0 ? 'neg' : 'pos'}">${signedMoney(r.monthlyNet)}</span></div>
+    </section>
+
+    <section class="panel">
+      <h2>診斷建議</h2>
+      <ul class="advice">${advice.map(([good, text]) => `<li class="${good ? 'good' : 'warn'}">${text}</li>`).join('')}</ul>
+    </section>
+
+    <p class="note">⚠️ 以上為機率期望值試算，實際大獎出現位置與營收可能不同，請作為配置參考，不是獲利保證。</p>`;
+}
+
+function updateProfitField(input) {
+  const p = state.profit;
+  if (input.dataset.kind) {
+    p[input.dataset.kind][Number(input.dataset.index)][input.dataset.field] = input.value;
+    // 更新該區的小計，不重畫輸入框（避免游標跳掉）
+    const foot = input.closest('.prize-panel').querySelector('.prize-foot .small');
+    const list = p[input.dataset.kind];
+    foot.textContent = `共 ${prizeQty(list)} 個 · 成本 ${money(Math.round(prizeTotal(list)))}`;
+  } else if (input.name in p) {
+    p[input.name] = input.value;
+  } else {
+    return;
+  }
+  save('profit');
+  renderProfitResults();
+}
+
+function setProfitCards(value) {
+  const p = state.profit;
+  if (value === 'custom') {
+    p.customCards = true;
+  } else {
+    p.customCards = false;
+    p.cards = Number(value);
+  }
+  save('profit');
+  renderProfit();
+}
+
+function changePrizeList(kind, index) {
+  const list = state.profit[kind];
+  if (index === undefined) list.push({ name: '', cost: '', qty: '1' });
+  else list.splice(Number(index), 1);
+  save('profit');
+  $(`#prize-${kind}`).innerHTML = prizeRows(kind);
+  renderProfitResults();
+}
+
+function resetProfit() {
+  state.profit = structuredClone(PROFIT_DEFAULTS);
+  save('profit');
+  renderProfit();
+  toast('已恢復範例數值');
+}
+
+function generateNumbers() {
+  const total = Math.floor(num($('#rng-total').value));
+  const count = Math.floor(num($('#rng-count').value));
+  const out = $('#rng-result');
+  if (total < 1 || total > 1000) {
+    out.innerHTML = '<p class="form-error">總刮數請輸入 1～1000</p>';
+    return;
+  }
+  if (count < 1 || count > total) {
+    out.innerHTML = `<p class="form-error">獎號數量請輸入 1～${total}</p>`;
+    return;
+  }
+  // Fisher–Yates：只洗前 count 個，取得不重複號碼
+  const pool = Array.from({ length: total }, (_, i) => i + 1);
+  for (let i = 0; i < count; i++) {
+    const j = i + Math.floor(Math.random() * (total - i));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const picked = pool.slice(0, count).sort((a, b) => a - b);
+  out.innerHTML = `
+    <p class="muted small">從 1～${total} 中抽出 ${count} 個號碼：</p>
+    <div class="rng-numbers">${picked.map((n) => `<span>${n}</span>`).join('')}</div>`;
 }
 
 function drawPrize() {
@@ -1238,6 +1590,11 @@ const ACTIONS = {
   'close-cart': closeCart,
   'event-filter': (el) => { eventFilter = el.dataset.value; renderEvents(); },
   'open-mini': (el) => openMini(el.dataset.id),
+  'profit-cards': (el) => setProfitCards(el.dataset.value),
+  'profit-add': (el) => changePrizeList(el.dataset.kind),
+  'profit-remove': (el) => changePrizeList(el.dataset.kind, el.dataset.index),
+  'profit-reset': resetProfit,
+  'rng': generateNumbers,
   'scratch-again': () => scratch.reset(),
   'open-drawer': openDrawer,
   'drawer-tab': (el) => setDrawerTab(el.dataset.id),
@@ -1249,6 +1606,7 @@ const ACTIONS = {
 
 const FORMS = {
   'pickup-form': submitPickup,
+  'profit-form': () => {}, // 邊輸入邊算，按 Enter 不必送出
   'signup-form': signUp,
 };
 
@@ -1272,6 +1630,11 @@ document.addEventListener('change', (e) => {
   winnerFilter = e.target.value;
   renderWinners();
   $('#winner-filter').focus();
+});
+
+// 效益試算：邊輸入邊重算
+document.addEventListener('input', (e) => {
+  if (e.target.closest('#profit-form')) updateProfitField(e.target);
 });
 
 // 電腦上滑鼠移到分類頁籤就切換內容
