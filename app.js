@@ -6,7 +6,15 @@
    留空 = 示範模式，訂單只存在這台瀏覽器。
    ========================================================= */
 
+// 會員登入也用同一個網址（Apps Script 依 action 分辨）
 const ORDER_API_URL = 'https://script.google.com/macros/s/AKfycbxTGhvRYtE21u79IUoljpcIFvCSotKu40DmX0e-W9wVP6CQqk69MMWXo3AuL2wFN1zilw/exec';
+
+// LINE 會員登入（LINE Developers → RayWang →「龍來刮 會員登入」頻道）
+// redirectUri 要和 LINE 後台的 Callback URL 一字不差，所以只有正式網站能登入
+const LINE_LOGIN = {
+  channelId: '2011980723',
+  redirectUri: 'https://minihorsewang.github.io/longlaigua/',
+};
 
 /* =========================================================
    資料區：目前都是範例內容，之後接後端時改成從 API 取得即可
@@ -114,13 +122,13 @@ const state = {
   orders: load('orders', []),     // [{ id, date, items, total, name, phone, delivery, address, note }]
   lastPickup: load('lastPickup', null), // 上次填的 7-11 取貨資料，下次自動帶入
   profit: load('profit', structuredClone(PROFIT_DEFAULTS)), // 效益試算上次輸入的內容
-  members: load('members', {}),               // { 'line:xxx': { provider, name, phone, email, points, prizes, joined } }
-  memberSession: load('memberSession', null), // 目前登入的會員 key
-  demoUids: load('demoUids', {}),             // 示範模式用的假 LINE / Google 帳號 ID
-  pendingSignup: null,                        // 第三方登入成功、但還沒填完註冊資料的人
+  member: load('member', null),             // 登入中的會員資料（以 Google 試算表為準，這裡是快取）
+  sessionToken: load('sessionToken', null), // Apps Script 發的登入憑證
+  pendingSignup: null,                      // LINE 驗證通過、但還沒填完註冊資料：{ ticket, name }
+  authBusy: false,                          // 正在跟 LINE／試算表確認登入
 };
 
-const currentMember = () => state.members[state.memberSession] ?? null;
+const currentMember = () => state.member;
 
 /* =========================================================
    工具
@@ -1097,16 +1105,21 @@ function renderPickupSummary() {
 }
 
 // 送到 Google 試算表（Apps Script）。用純文字送出，瀏覽器才不會先發 CORS 預檢請求
-async function sendOrder(payload) {
+// 呼叫 Apps Script；失敗時丟出可直接顯示給客人的錯誤（err.expired = 登入已過期）
+async function callApi(payload, offlineMessage = '服務暫時無法連線，請稍後再試') {
   let result;
   try {
     const res = await fetch(ORDER_API_URL, { method: 'POST', body: JSON.stringify(payload) });
     result = await res.json();
   } catch {
-    throw new Error('訂單服務暫時無法連線，請稍後再試');
+    throw new Error(offlineMessage);
   }
-  if (!result.ok) throw new Error(result.error || '訂單送出失敗');
-  return result; // { ok, id, subtotal, shipping, total }
+  if (!result.ok) throw Object.assign(new Error(result.error || '操作失敗，請稍後再試'), { expired: result.expired });
+  return result;
+}
+
+async function sendOrder(payload) {
+  return callApi(payload, '訂單服務暫時無法連線，請稍後再試'); // { ok, id, subtotal, shipping, total }
 }
 
 async function submitPickup(form) {
@@ -1179,11 +1192,10 @@ async function submitPickup(form) {
 }
 
 /* =========================================================
-   會員：LINE / Google 登入，第一次登入要填姓名、電話、Email 完成註冊
-
-   目前是「示範模式」：按下登入按鈕會模擬 LINE / Google 回傳一個帳號。
-   正式上線時只要改寫 auth.signIn()，換成真正的 LINE / Google 登入，
-   其餘畫面與流程都不用動。
+   會員：LINE 登入，第一次登入要填姓名、電話、Email 完成註冊
+   ① 轉到 LINE 同意頁 → ② LINE 帶著授權碼回到網站（?code=…&state=…）
+   ③ 授權碼交給 Apps Script，由它向 LINE 驗證並查「會員」工作表 → ④ 拿到登入憑證
+   會員資料存在 Google 試算表；瀏覽器只留登入憑證與一份快取。
    ========================================================= */
 
 const LINE_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#06C755"/><path fill="#fff" d="M12 5.2c-4.4 0-8 2.8-8 6.3 0 3.1 2.8 5.7 6.6 6.2.3.1.6.2.7.4.1.2.1.5 0 .8l-.1.7c0 .2-.2.8.7.4.9-.4 4.9-2.9 6.6-4.9 1.2-1.3 1.6-2.6 1.6-3.9 0-3.5-3.6-6-8.1-6z"/></svg>`;
@@ -1195,53 +1207,137 @@ const PROVIDERS = {
   google: { name: 'Google', icon: GOOGLE_ICON },
 };
 
-const auth = {
-  demo: true,
+const LINE_STATE_KEY = 'lucky-scratch:lineLogin'; // sessionStorage：防偽造用的 state 與 nonce
 
-  // 回傳 { provider, uid, name, email }：uid 是該 LINE / Google 帳號的唯一 ID，
-  // name / email 是第三方提供的資料（有的話會自動帶入註冊表單）
-  async signIn(provider) {
-    state.demoUids[provider] ??= Math.random().toString(36).slice(2, 10);
-    save('demoUids');
-    return { provider, uid: state.demoUids[provider], name: '', email: '' };
-  },
-};
-
-async function signIn(provider) {
-  const identity = await auth.signIn(provider);
-  const key = `${identity.provider}:${identity.uid}`;
-  const member = state.members[key];
-
-  if (member) {
-    state.memberSession = key;
-    save('memberSession');
-    toast(`歡迎回來，${member.name}！`);
-  } else {
-    state.pendingSignup = identity;
+function signIn(provider) {
+  if (provider !== 'line') {
+    toast('Google 登入即將開放，請先使用 LINE 登入');
+    return;
   }
-  renderMember();
+  if (location.origin + location.pathname !== LINE_LOGIN.redirectUri) {
+    toast('LINE 登入只能在正式網站使用');
+    return;
+  }
+  const login = { state: crypto.randomUUID(), nonce: crypto.randomUUID() };
+  try {
+    sessionStorage.setItem(LINE_STATE_KEY, JSON.stringify(login));
+  } catch {
+    toast('瀏覽器無法暫存登入資料，請關閉無痕模式後再試');
+    return;
+  }
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: LINE_LOGIN.channelId,
+    redirect_uri: LINE_LOGIN.redirectUri,
+    state: login.state,
+    nonce: login.nonce,
+    scope: 'profile openid',
+    bot_prompt: 'normal', // 同意畫面附「加入官方帳號好友」選項（預設勾選）
+  });
+  location.href = `https://access.line.me/oauth2/v2.1/authorize?${params}`;
 }
 
-function signUp(form) {
-  const { provider, uid } = state.pendingSignup;
-  const key = `${provider}:${uid}`;
-  const name = form.elements.name.value.trim();
+// 網站載入時：如果是 LINE 登入完導回來的（網址帶 ?code= 或 ?error=），就完成登入
+async function handleLineCallback() {
+  const params = new URLSearchParams(location.search);
+  if (!params.has('code') && !params.has('error')) return false;
 
-  state.members[key] = {
-    provider,
-    name,
-    phone: form.elements.phone.value.trim(),
-    email: form.elements.email.value.trim(),
-    points: 0,
-    prizes: [],
-    joined: todayStr(),
-  };
-  state.memberSession = key;
-  state.pendingSignup = null;
-  save('members');
-  save('memberSession');
-  toast(`註冊成功，歡迎 ${name}！`);
-  renderMember();
+  let login = null;
+  try {
+    login = JSON.parse(sessionStorage.getItem(LINE_STATE_KEY));
+    sessionStorage.removeItem(LINE_STATE_KEY);
+  } catch {
+    // 讀不到就當作驗證失敗
+  }
+  // 把 ?code= 從網址拿掉，避免重新整理時重複使用；登入結果顯示在會員頁
+  history.replaceState(null, '', location.pathname + '#member');
+
+  if (params.has('error')) {
+    toast('已取消 LINE 登入');
+    return true;
+  }
+  if (!login || params.get('state') !== login.state) {
+    toast('登入驗證失敗，請重新登入');
+    return true;
+  }
+
+  state.authBusy = true;
+  route();
+  try {
+    const result = await callApi({ action: 'lineLogin', code: params.get('code'), nonce: login.nonce });
+    if (result.needSignup) {
+      state.pendingSignup = { ticket: result.ticket, name: result.lineName };
+    } else {
+      setSession(result);
+      toast(`歡迎回來，${result.member.name}！`);
+    }
+  } catch (err) {
+    toast(err.message);
+  }
+  state.authBusy = false;
+  route();
+  return true;
+}
+
+function setSession({ token, member }) {
+  state.sessionToken = token;
+  state.member = member;
+  save('sessionToken');
+  save('member');
+}
+
+function clearSession() {
+  state.sessionToken = null;
+  state.member = null;
+  save('sessionToken');
+  save('member');
+}
+
+// 網站開啟時向試算表確認登入是否還有效，順便更新點數等資料
+async function refreshMember() {
+  if (!state.sessionToken) return;
+  try {
+    const { member } = await callApi({ action: 'me', token: state.sessionToken });
+    state.member = member;
+    save('member');
+  } catch (err) {
+    if (!err.expired) return; // 連線問題就先沿用快取
+    clearSession();
+    toast('登入已過期，請重新登入');
+  }
+  if (!$('#page-member').hidden) renderMember();
+}
+
+async function signUp(form) {
+  const button = form.querySelector('[type="submit"]');
+  const error = $('#signup-error');
+  button.disabled = true;
+  button.textContent = '註冊中…';
+  error.hidden = true;
+  try {
+    const result = await callApi({
+      action: 'signup',
+      ticket: state.pendingSignup.ticket,
+      name: form.elements.name.value.trim(),
+      phone: form.elements.phone.value.trim(),
+      email: form.elements.email.value.trim(),
+    });
+    state.pendingSignup = null;
+    setSession(result);
+    toast(`註冊成功，歡迎 ${result.member.name}！`);
+    renderMember();
+  } catch (err) {
+    if (err.expired) {
+      state.pendingSignup = null;
+      toast(err.message);
+      renderMember();
+      return;
+    }
+    error.textContent = err.message;
+    error.hidden = false;
+    button.disabled = false;
+    button.textContent = '完成註冊';
+  }
 }
 
 function cancelSignup() {
@@ -1249,11 +1345,12 @@ function cancelSignup() {
   renderMember();
 }
 
-function logout() {
-  state.memberSession = null;
-  save('memberSession');
+async function logout() {
+  const token = state.sessionToken;
+  clearSession();
   toast('已登出');
   renderMember();
+  if (token) callApi({ action: 'logout', token }).catch(() => {}); // 試算表那邊的憑證也刪掉
 }
 
 function renderLogin() {
@@ -1262,39 +1359,38 @@ function renderLogin() {
       <div class="auth-head">
         <span class="auth-logo" aria-hidden="true">🎫</span>
         <h1 class="page-title">會員登入</h1>
-        <p class="page-sub">使用 LINE 或 Google 帳號快速登入<br>第一次登入需填寫基本資料完成註冊</p>
+        <p class="page-sub">使用 LINE 帳號快速登入<br>第一次登入需填寫基本資料完成註冊</p>
       </div>
       <div class="social-btns">
         <button class="btn-social btn-line" data-action="sign-in" data-provider="line">${LINE_ICON}使用 LINE 登入</button>
-        <button class="btn-social btn-google" data-action="sign-in" data-provider="google">${GOOGLE_ICON}使用 Google 登入</button>
+        <button class="btn-social btn-google" data-action="sign-in" data-provider="google">${GOOGLE_ICON}使用 Google 登入（即將開放）</button>
       </div>
       <ul class="perks">
         <li>🧾 訂單紀錄隨時查詢</li>
         <li>💎 會員日點數 2 倍送</li>
       </ul>
-      ${auth.demo ? '<p class="note">※ 示範模式：尚未串接 LINE / Google，按下按鈕會模擬登入，資料只存在這台裝置的瀏覽器中。</p>' : ''}
+      <p class="note">登入時可選擇加入「龍來刮」LINE 官方帳號好友，接收出貨與活動通知。</p>
     </div>`;
 }
 
-function renderSignup({ provider, name, email }) {
-  const p = PROVIDERS[provider];
+function renderSignup({ name }) {
   return `
     <div class="panel auth-box">
-      <span class="provider-badge provider-${provider}">${p.icon}已透過 ${p.name} 驗證</span>
+      <span class="provider-badge provider-line">${LINE_ICON}已透過 LINE 驗證</span>
       <h1 class="page-title">完成會員註冊</h1>
       <p class="page-sub">最後一步！請填寫以下資料，方便通知中獎與寄送獎品</p>
       <form id="signup-form" class="form">
         <label class="field">姓名
-          <input name="name" required autocomplete="name" value="${escapeHtml(name)}">
+          <input name="name" required maxlength="20" autocomplete="name" value="${escapeHtml(name)}">
         </label>
         <label class="field">電話
-          <input name="phone" type="tel" required pattern="09\\d{8}" placeholder="0912345678"
+          <input name="phone" type="tel" required pattern="09\\d{8}" maxlength="10" placeholder="0912345678"
             title="請輸入 09 開頭的 10 碼手機號碼" autocomplete="tel">
         </label>
         <label class="field">Email
-          <input name="email" type="email" required placeholder="name@example.com"
-            autocomplete="email" value="${escapeHtml(email)}">
+          <input name="email" type="email" required maxlength="100" placeholder="name@example.com" autocomplete="email">
         </label>
+        <p class="form-error" id="signup-error" role="alert" hidden></p>
         <button class="btn btn-primary btn-block" type="submit">完成註冊</button>
         <button class="btn btn-light btn-block" type="button" data-action="cancel-signup">取消</button>
       </form>
@@ -1305,6 +1401,10 @@ function renderMember() {
   const el = $('#page-member');
   const member = currentMember();
 
+  if (state.authBusy) {
+    el.innerHTML = `<div class="panel auth-box">${emptyBox('⏳', 'LINE 登入確認中，請稍候…')}</div>`;
+    return;
+  }
   if (!member) {
     el.innerHTML = state.pendingSignup ? renderSignup(state.pendingSignup) : renderLogin();
     return;
@@ -1460,3 +1560,4 @@ renderDrawer();
 updateCartBadge();
 renderCartDrawer();
 route();
+handleLineCallback().then((handled) => { if (!handled) refreshMember(); });
