@@ -871,9 +871,6 @@ body.cart-open .side-tab { opacity: 0; pointer-events: none; }
 .btn-social svg { width: 24px; height: 24px; }
 .btn-line { background: #06c755; color: #fff; }
 .btn-line:hover { background: #05b14c; }
-.btn-google { background: #fff; color: #1f1f1f; border: 1px solid #dadce0; }
-.btn-google:hover { background: #f8f9fa; }
-.btn-google svg { width: 20px; height: 20px; }
 
 .provider-badge {
   display: inline-flex;
@@ -887,7 +884,6 @@ body.cart-open .side-tab { opacity: 0; pointer-events: none; }
 }
 .provider-badge svg { width: 18px; height: 18px; }
 .provider-line { background: #e6f9ee; color: #04913d; }
-.provider-google { background: #eef3fe; color: #1a56c4; }
 
 .level.level-provider { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; padding-left: 4px; }
 .level-provider svg { width: 14px; height: 14px; }
@@ -907,6 +903,8 @@ body.cart-open .side-tab { opacity: 0; pointer-events: none; }
 }
 .member-card > div { flex: 1; min-width: 0; }
 .member-name { font-size: 1.25rem; font-weight: 800; }
+.member-code { font-size: .85rem; letter-spacing: .5px; }
+.member-code b { font-family: ui-monospace, Consolas, monospace; letter-spacing: 1px; }
 .avatar-lg { width: 60px; height: 60px; background: var(--gold); color: #3b2a00; font-size: 1.5rem; }
 .level { display: inline-block; margin-top: 4px; padding: 1px 10px; border-radius: 999px; background: rgba(255, 255, 255, .15); font-size: .75rem; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
