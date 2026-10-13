@@ -119,13 +119,13 @@ function save(key) {
 
 const state = {
   cart: load('cart', []),         // [{ id, qty }]
-  orders: load('orders', []),     // [{ id, date, items, total, name, phone, delivery, address, note }]
   lastPickup: load('lastPickup', null), // 上次填的 7-11 取貨資料，下次自動帶入
   profit: load('profit', structuredClone(PROFIT_DEFAULTS)), // 效益試算上次輸入的內容
   member: load('member', null),             // 登入中的會員資料（以 Google 試算表為準，這裡是快取）
   sessionToken: load('sessionToken', null), // Apps Script 發的登入憑證
   pendingSignup: null,                      // LINE 驗證通過、但還沒填完註冊資料：{ ticket, name }
   authBusy: false,                          // 正在跟 LINE／試算表確認登入
+  memberOrders: null,                       // 會員訂單（從試算表讀）：null 未讀取、'loading'、'error' 或陣列
 };
 
 const currentMember = () => state.member;
@@ -1045,6 +1045,9 @@ function renderPickup() {
     <div class="order-layout">
       <section class="panel">
         <h2>收件人與門市</h2>
+        ${member
+          ? `<p class="member-linked">此訂單會記錄在會員 <b>${escapeHtml(member.memberCode || member.name)}</b> 名下，可到會員中心查看</p>`
+          : '<p class="note">💡 <a href="#member">登入會員</a>後下單，訂單會記錄在會員中心，換手機也看得到</p>'}
         <form id="pickup-form" class="form">
           <label class="field">收件人姓名
             <input name="name" required minlength="2" maxlength="10" autocomplete="name"
@@ -1140,7 +1143,11 @@ async function submitPickup(form) {
   let result;
   try {
     result = ORDER_API_URL
-      ? await sendOrder({ ...pickup, items: lines.map(({ product, qty }) => ({ id: product.id, qty })) })
+      ? await sendOrder({
+        ...pickup,
+        items: lines.map(({ product, qty }) => ({ id: product.id, qty })),
+        token: state.sessionToken ?? undefined, // 有登入就附上，後端驗證後記下會員編號
+      })
       : { id: 'DEMO' + Date.now().toString().slice(-8), ...cartSummary(lines) };
   } catch (err) {
     error.textContent = err.message;
@@ -1150,41 +1157,31 @@ async function submitPickup(form) {
     return;
   }
 
-  const order = {
-    id: result.id,
-    date: todayStr(),
-    subtotal: result.subtotal,
-    shipping: result.shipping,
-    total: result.total,
-    items: lines.map(({ product, qty }) => ({ name: product.name, price: product.price, qty })),
-    name: pickup.name,
-    phone: pickup.phone,
-    delivery: '7-11 取貨付款',
-    address: `${pickup.storeName}（${pickup.storeCode}）`,
-    note: pickup.note,
-  };
   const { note, ...rememberedPickup } = pickup;
   state.lastPickup = rememberedPickup;
-  state.orders.unshift(order);
   state.cart = [];
+  state.memberOrders = null; // 會員中心下次重新讀取，才看得到這筆
   save('lastPickup');
-  save('orders');
   save('cart');
   updateCartBadge();
   renderCartDrawer();
 
+  const memberNote = result.memberCode
+    ? `<p class="member-linked">已記錄在會員 <b>${escapeHtml(result.memberCode)}</b> 的訂單中，可到會員中心查看</p>`
+    : '';
   $('#page-pickup').innerHTML = `
     ${checkoutSteps(3)}
     <div class="panel success">
       <div class="success-icon" aria-hidden="true">✅</div>
       <h1 class="page-title">訂單已送出！</h1>
-      <p>訂單編號 <b>${escapeHtml(order.id)}</b></p>
-      <p>取貨門市：<b>7-11 ${escapeHtml(order.address)}</b><br>
-        取貨時付款：<b class="price">${money(order.total)}</b></p>
-      <p class="muted">包裹到店後會以簡訊通知 ${escapeHtml(order.phone)}，請帶證件到門市取貨付款。</p>
+      <p>訂單編號 <b>${escapeHtml(result.id)}</b></p>
+      <p>取貨門市：<b>7-11 ${escapeHtml(pickup.storeName)}（${escapeHtml(pickup.storeCode)}）</b><br>
+        取貨時付款：<b class="price">${money(result.total)}</b></p>
+      <p class="muted">包裹到店後會以簡訊通知 ${escapeHtml(pickup.phone)}，請帶證件到門市取貨付款。</p>
+      ${memberNote}
       ${ORDER_API_URL ? '' : '<p class="note">※ 示範模式：尚未設定 Google 試算表，訂單只存在這台瀏覽器中。</p>'}
       <div class="actions">
-        <a class="btn btn-primary" href="#member">查看我的訂單</a>
+        ${result.memberCode ? '<a class="btn btn-primary" href="#member">查看我的訂單</a>' : ''}
         <a class="btn btn-light" href="#products">繼續購物</a>
       </div>
     </div>`;
@@ -1275,6 +1272,7 @@ async function handleLineCallback() {
 function setSession({ token, member }) {
   state.sessionToken = token;
   state.member = member;
+  state.memberOrders = null;
   save('sessionToken');
   save('member');
 }
@@ -1282,8 +1280,48 @@ function setSession({ token, member }) {
 function clearSession() {
   state.sessionToken = null;
   state.member = null;
+  state.memberOrders = null;
   save('sessionToken');
   save('member');
+}
+
+// 會員中心的「我的訂單」：從試算表讀取這位會員的訂單（依會員編號對應）
+async function loadMemberOrders() {
+  if (!state.sessionToken || state.memberOrders === 'loading') return;
+  state.memberOrders = 'loading';
+  try {
+    const { orders } = await callApi({ action: 'myOrders', token: state.sessionToken });
+    state.memberOrders = orders;
+  } catch (err) {
+    if (err.expired) {
+      clearSession();
+      toast('登入已過期，請重新登入');
+    } else {
+      state.memberOrders = 'error';
+    }
+  }
+  if (!$('#page-member').hidden) renderMember();
+}
+
+const ORDER_STATUS_TAG = { 待出貨: 'tag-soon', 已出貨: 'tag-live' };
+
+function memberOrderList() {
+  const orders = state.memberOrders;
+  if (orders === null || orders === 'loading') return emptyBox('⏳', '訂單讀取中…');
+  if (orders === 'error') {
+    return emptyBox('⚠️', '訂單暫時無法讀取', '<button class="btn btn-light btn-sm" data-action="reload-orders">重新讀取</button>');
+  }
+  if (!orders.length) return emptyBox('🧾', '還沒有訂單', '<a class="btn btn-light btn-sm" href="#products">去逛逛</a>');
+  return `<ul class="list order-list">${orders.map((o) => `
+    <li>
+      <div>
+        <b>${escapeHtml(o.id)}</b>
+        <span class="tag ${ORDER_STATUS_TAG[o.status] ?? 'tag-ended'}">${escapeHtml(o.status || '處理中')}</span>
+        <div class="muted small">${escapeHtml(o.date)} · 7-11 ${escapeHtml(o.store)}</div>
+        <div class="small">${escapeHtml(o.product)}</div>
+      </div>
+      <span class="price">${money(o.total)}</span>
+    </li>`).join('')}</ul>`;
 }
 
 // 網站開啟時向試算表確認登入是否還有效，順便更新點數等資料
@@ -1402,17 +1440,8 @@ function renderMember() {
     return;
   }
 
-  const orders = state.orders.filter((o) => o.phone === member.phone);
-  const orderList = orders.length
-    ? `<ul class="list">${orders.map((o) => `
-        <li>
-          <div>
-            <b>${o.id}</b>
-            <div class="muted small">${o.date} · ${o.items.length} 項商品 · ${escapeHtml(o.delivery)}</div>
-          </div>
-          <span class="price">${money(o.total)}</span>
-        </li>`).join('')}</ul>`
-    : emptyBox('🧾', '還沒有訂單', '<a class="btn btn-light btn-sm" href="#products">去逛逛</a>');
+  if (state.memberOrders === null) loadMemberOrders();
+  const orderCount = Array.isArray(state.memberOrders) ? state.memberOrders.length : '—';
   const prizeList = member.prizes.length
     ? `<ul class="list">${member.prizes.map((p) => `
         <li><span>🎉 ${p.label}</span><span class="muted small">${p.date}</span></li>`).join('')}</ul>`
@@ -1433,11 +1462,11 @@ function renderMember() {
     </div>
     <div class="stats">
       <div class="stat"><b>${member.points.toLocaleString('zh-TW')}</b><span>我的點數</span></div>
-      <div class="stat"><b>${orders.length}</b><span>訂單</span></div>
+      <div class="stat"><b>${orderCount}</b><span>訂單</span></div>
       <div class="stat"><b>${member.prizes.length}</b><span>中獎次數</span></div>
     </div>
     <div class="member-sections">
-      <section class="panel"><h2>我的訂單</h2>${orderList}</section>
+      <section class="panel"><h2>我的訂單</h2>${memberOrderList()}</section>
       <section class="panel"><h2>中獎紀錄</h2>${prizeList}</section>
     </div>`;
 }
@@ -1499,6 +1528,7 @@ const ACTIONS = {
   'sign-in': signIn,
   'cancel-signup': cancelSignup,
   'logout': logout,
+  'reload-orders': () => { state.memberOrders = null; renderMember(); },
 };
 
 const FORMS = {

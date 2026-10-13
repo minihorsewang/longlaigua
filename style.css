@@ -904,6 +904,11 @@ body.cart-open .side-tab { opacity: 0; pointer-events: none; }
 .member-card > div { flex: 1; min-width: 0; }
 .member-name { font-size: 1.25rem; font-weight: 800; }
 .member-code { font-size: .85rem; letter-spacing: .5px; }
+.member-linked { margin: 0 0 4px; padding: 8px 12px; border-radius: 10px; background: #e3f6f1; color: #1f7a6f; font-size: .85rem; }
+.success .member-linked { display: inline-block; }
+.order-list li { align-items: flex-start; }
+.order-list .tag { margin-left: 6px; vertical-align: 1px; }
+.order-list .small:last-child { margin-top: 2px; }
 .member-code b { font-family: ui-monospace, Consolas, monospace; letter-spacing: 1px; }
 .avatar-lg { width: 60px; height: 60px; background: var(--gold); color: #3b2a00; font-size: 1.5rem; }
 .level { display: inline-block; margin-top: 4px; padding: 1px 10px; border-radius: 999px; background: rgba(255, 255, 255, .15); font-size: .75rem; }
