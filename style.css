@@ -583,7 +583,10 @@ main.container { padding-top: 20px; padding-bottom: 56px; min-height: 70vh; }
   background-size: 22px 22px;
   font-size: clamp(3rem, 9vw, 4.5rem);
 }
-.product-img .tag { position: absolute; top: 10px; left: 10px; }
+.product-img .tag { position: absolute; top: 10px; left: 10px; z-index: 1; }
+/* 商品照片（試算表「照片網址」）：填滿方框，裁切成正方形 */
+.product-img, .mp-img, .cart-thumb { position: relative; overflow: hidden; }
+.product-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .product-body { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 12px 14px 14px; }
 .product-cat { color: var(--muted); font-size: .75rem; letter-spacing: 1px; }
 .product-name { margin: 0; font-size: .95rem; font-weight: 500; line-height: 1.4; }

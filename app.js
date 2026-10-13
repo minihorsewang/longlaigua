@@ -48,7 +48,8 @@ const CATEGORIES = [
     desc: '開運刮板、收藏卡冊、鑰匙圈，讓刮刮樂更有儀式感。' },
 ];
 
-const PRODUCTS = [
+// 商品以 Google 試算表「商品」工作表為準（網站開啟時讀取）；這份只在讀不到試算表、也沒有快取時顯示
+const DEFAULT_PRODUCTS = [
   { id: 'p1', category: 'cards', name: '幸運刮刮卡（單張）', emoji: '🎫', price: 50, tag: '熱銷', hot: true },
   { id: 'p2', category: 'cards', name: '刮刮卡 10 張組', emoji: '🎟️', price: 450, tag: '9 折', hot: true },
   { id: 'p3', category: 'cards', name: '黃金刮刮卡', emoji: '🥇', price: 200, hot: true },
@@ -129,6 +130,9 @@ const state = {
 };
 
 const currentMember = () => state.member;
+
+// 目前顯示的商品：先用上次從試算表讀到的快取（開站就有東西看），再於背景更新
+let PRODUCTS = load('products', DEFAULT_PRODUCTS);
 
 /* =========================================================
    工具
@@ -232,7 +236,7 @@ function renderDrawer() {
       <div class="drawer-products">
         ${list.slice(0, 8).map((p) => `
           <a class="mp" href="#products/${p.category}">
-            <span class="mp-img" aria-hidden="true">${p.emoji}</span>
+            <span class="mp-img" aria-hidden="true">${productThumb(p)}</span>
             <span>${p.name}</span>
             <span class="price">${money(p.price)}</span>
           </a>`).join('')}
@@ -287,12 +291,20 @@ function eventCard(ev) {
     </article>`;
 }
 
+// 商品圖：有照片用照片，沒有就用圖示（emoji）；照片載入失敗（網址錯、沒開分享）會自動退回圖示
+function productThumb(p) {
+  const icon = `<span aria-hidden="true">${p.emoji}</span>`;
+  return p.image
+    ? `${icon}<img class="product-photo" src="${p.image}" alt="" loading="lazy" onerror="this.remove()">`
+    : icon;
+}
+
 function productCard(p) {
   return `
     <article class="product-card">
       <div class="product-img">
         ${p.tag ? `<span class="tag tag-hot">${p.tag}</span>` : ''}
-        <span aria-hidden="true">${p.emoji}</span>
+        ${productThumb(p)}
       </div>
       <div class="product-body">
         <span class="product-cat">${categoryById(p.category)?.name ?? ''}</span>
@@ -906,7 +918,7 @@ function renderCartDrawer(highlightId) {
 
   $('#cart-body').innerHTML = lines.map(({ product: p, qty }) => `
     <div class="cart-item ${p.id === highlightId ? 'just-added' : ''}">
-      <span class="cart-thumb" aria-hidden="true">${p.emoji}</span>
+      <span class="cart-thumb" aria-hidden="true">${productThumb(p)}</span>
       <div class="cart-info">
         <div class="cart-name">${p.name}</div>
         <div class="price small">${money(p.price * qty)}</div>
@@ -1002,7 +1014,7 @@ function renderCheckoutSummary() {
   const summary = cartSummary(lines);
   const rows = lines.map(({ product: p, qty }) => `
     <div class="cart-item">
-      <span class="cart-thumb" aria-hidden="true">${p.emoji}</span>
+      <span class="cart-thumb" aria-hidden="true">${productThumb(p)}</span>
       <div class="cart-info">
         <div class="cart-name">${p.name}</div>
         <div class="muted small">${money(p.price)} × ${qty}</div>
@@ -1487,6 +1499,67 @@ const PAGES = {
   member: renderMember,
 };
 
+/* ---------- 商品：從 Google 試算表「商品」工作表讀取 ---------- */
+
+// 試算表的資料由人工輸入，這裡先清理、跳脫，畫面各處就能直接使用
+function normalizeProduct(raw) {
+  const id = String(raw.id ?? '').trim();
+  const price = Number(raw.price);
+  if (!/^[\w-]{1,40}$/.test(id) || !raw.name || !(price > 0)) return null;
+  const categoryName = String(raw.category ?? '').trim();
+  const category = CATEGORIES.find((c) => c.name === categoryName || c.id === categoryName);
+  const image = String(raw.image ?? '').trim();
+  return {
+    id,
+    name: escapeHtml(String(raw.name).trim()),
+    price,
+    category: category?.id ?? '',
+    tag: escapeHtml(String(raw.tag ?? '').trim()),
+    hot: raw.hot === true,
+    emoji: escapeHtml(String(raw.emoji ?? '').trim() || category?.emoji || '🎁'),
+    image: /^https:\/\//.test(image) ? escapeHtml(image) : '',
+    desc: escapeHtml(String(raw.desc ?? '').trim()),
+  };
+}
+
+async function loadProducts() {
+  if (!ORDER_API_URL) return;
+  let result;
+  try {
+    const res = await fetch(`${ORDER_API_URL}?action=products`);
+    result = await res.json();
+  } catch {
+    return; // 讀不到就沿用快取
+  }
+  if (!result.ok || !Array.isArray(result.products)) return;
+  PRODUCTS = result.products.map(normalizeProduct).filter(Boolean);
+  try {
+    localStorage.setItem(STORAGE_PREFIX + 'products', JSON.stringify(PRODUCTS));
+  } catch {
+    // 存不了快取沒關係
+  }
+  refreshProductViews();
+}
+
+// 商品更新後重畫有商品的地方；結帳頁只更新金額，避免清掉客人已填的資料
+function refreshProductViews() {
+  renderDrawer();
+  updateCartBadge();
+  renderCartDrawer();
+  const [path, query = ''] = location.hash.slice(1).split('?');
+  const [page, param] = path.split('/');
+  if (!Object.hasOwn(PAGES, page) || page === 'home' || page === 'products') {
+    // 不呼叫 route()：避免關掉客人剛打開的購物車、捲回頂端
+    clearInterval(carouselTimer);
+    const name = Object.hasOwn(PAGES, page) ? page : 'home';
+    PAGES[name](param && decodeURIComponent(param), new URLSearchParams(query));
+  } else if (page === 'order' && !$('#page-order').hidden) {
+    renderOrder();
+  } else if (page === 'pickup' && $('#pickup-summary')) {
+    renderPickupSummary();
+  }
+}
+
 function route() {
   const [path, query = ''] = location.hash.slice(1).split('?');
   const [page, param] = path.split('/');
@@ -1583,4 +1656,5 @@ renderDrawer();
 updateCartBadge();
 renderCartDrawer();
 route();
+loadProducts();
 handleLineCallback().then((handled) => { if (!handled) refreshMember(); });
