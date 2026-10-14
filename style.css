@@ -874,6 +874,10 @@ body.cart-open .side-tab { opacity: 0; pointer-events: none; }
 .btn-social svg { width: 24px; height: 24px; }
 .btn-line { background: #06c755; color: #fff; }
 .btn-line:hover { background: #05b14c; }
+/* 結帳頁的「請先登入」 */
+.login-gate { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1.5px dashed var(--brand); border-radius: 12px; background: var(--brand-soft); }
+.login-gate p { margin: 0; }
+.login-gate .btn-social { width: 100%; }
 
 .provider-badge {
   display: inline-flex;

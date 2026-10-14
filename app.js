@@ -974,6 +974,7 @@ function renderOrder() {
     return;
   }
 
+  const member = currentMember();
   el.innerHTML = `
     ${pageHead('結帳', '確認購物車內容，下一步填寫 7-11 取貨資料')}
     ${checkoutSteps(1)}
@@ -988,10 +989,20 @@ function renderOrder() {
             <p class="muted small">包裹寄到你指定的 7-11 門市，到店取貨時再付款，不用先付錢。</p>
           </div>
         </div>
-        <a class="btn btn-primary btn-block" id="order-submit" href="#pickup"></a>
+        ${member ? '<a class="btn btn-primary btn-block" id="order-submit" href="#pickup"></a>' : checkoutLoginGate()}
       </section>
     </div>`;
   renderCheckoutSummary();
+}
+
+// 限會員下單：沒登入時在結帳頁顯示 LINE 登入（登入完會回到結帳頁，購物車保留）
+function checkoutLoginGate() {
+  return `
+    <div class="login-gate">
+      <b>下單前請先登入會員</b>
+      <p class="muted small">使用 LINE 一鍵登入，第一次登入需填寫基本資料。登入後會自動回到結帳頁，購物車內容會保留。</p>
+      <button class="btn-social btn-line" data-action="sign-in">${LINE_ICON}使用 LINE 登入</button>
+    </div>`;
 }
 
 function checkoutSteps(current) {
@@ -1029,7 +1040,8 @@ function renderCheckoutSummary() {
     </div>
     ${rows}
     <div class="summary-total">${summaryRows(summary)}</div>`;
-  $('#order-submit').textContent = `確認下單 · ${money(summary.total)}`;
+  const submit = $('#order-submit');
+  if (submit) submit.textContent = `確認下單 · ${money(summary.total)}`;
 }
 
 /* ---------- 填寫 7-11 取貨資料（欄位規則參考快速建單） ----------
@@ -1048,6 +1060,13 @@ function renderPickup() {
 
   // 優先帶入上次填的取貨資料，其次是會員資料
   const member = currentMember();
+  if (!member) {
+    el.innerHTML = `
+      ${pageHead('填寫 7-11 取貨資料', '包裹會寄到你指定的 7-11 門市，取貨時付款')}
+      ${checkoutSteps(2)}
+      <section class="panel auth-box">${checkoutLoginGate()}</section>`;
+    return;
+  }
   const last = state.lastPickup ?? {};
   const value = (key, fallback = '') => escapeHtml(last[key] ?? fallback);
 
@@ -1057,9 +1076,7 @@ function renderPickup() {
     <div class="order-layout">
       <section class="panel">
         <h2>收件人與門市</h2>
-        ${member
-          ? `<p class="member-linked">此訂單會記錄在會員 <b>${escapeHtml(member.memberCode || member.name)}</b> 名下，可到會員中心查看</p>`
-          : '<p class="note">💡 <a href="#member">登入會員</a>後下單，訂單會記錄在會員中心，換手機也看得到</p>'}
+        <p class="member-linked">此訂單會記錄在會員 <b>${escapeHtml(member.memberCode || member.name)}</b> 名下，可到會員中心查看</p>
         <form id="pickup-form" class="form">
           <label class="field">收件人姓名
             <input name="name" required minlength="2" maxlength="10" autocomplete="name"
@@ -1129,7 +1146,12 @@ async function callApi(payload, offlineMessage = '服務暫時無法連線，請
   } catch {
     throw new Error(offlineMessage);
   }
-  if (!result.ok) throw Object.assign(new Error(result.error || '操作失敗，請稍後再試'), { expired: result.expired });
+  if (!result.ok) {
+    throw Object.assign(new Error(result.error || '操作失敗，請稍後再試'), {
+      expired: result.expired,
+      needLogin: result.needLogin,
+    });
+  }
   return result;
 }
 
@@ -1162,6 +1184,13 @@ async function submitPickup(form) {
       })
       : { id: 'DEMO' + Date.now().toString().slice(-8), ...cartSummary(lines) };
   } catch (err) {
+    if (err.needLogin) {
+      // 登入過期：清掉登入狀態，改顯示登入按鈕（購物車保留，登入後回到這一頁）
+      clearSession();
+      toast(err.message);
+      renderPickup();
+      return;
+    }
     error.textContent = err.message;
     error.hidden = false;
     button.disabled = false;
@@ -1215,12 +1244,26 @@ const PROVIDERS = {
 
 const LINE_STATE_KEY = 'lucky-scratch:lineLogin'; // sessionStorage：防偽造用的 state 與 nonce
 
+const CHECKOUT_PAGES = ['#order', '#pickup'];
+
+// 登入或註冊完成後回到原本的頁面（只允許回到結帳頁，其他一律回會員頁）
+function goAfterLogin(returnHash) {
+  const target = CHECKOUT_PAGES.includes(returnHash) ? returnHash : '#member';
+  if (location.hash === target) route();
+  else location.hash = target;
+}
+
 function signIn() {
   if (location.origin + location.pathname !== LINE_LOGIN.redirectUri) {
     toast('LINE 登入只能在正式網站使用');
     return;
   }
-  const login = { state: crypto.randomUUID(), nonce: crypto.randomUUID() };
+  const login = {
+    state: crypto.randomUUID(),
+    nonce: crypto.randomUUID(),
+    // 從結帳頁登入的，登入完要回到結帳頁
+    returnHash: CHECKOUT_PAGES.includes(location.hash) ? location.hash : '#member',
+  };
   try {
     sessionStorage.setItem(LINE_STATE_KEY, JSON.stringify(login));
   } catch {
@@ -1268,11 +1311,16 @@ async function handleLineCallback() {
   try {
     const result = await callApi({ action: 'lineLogin', code: params.get('code'), nonce: login.nonce });
     if (result.needSignup) {
-      state.pendingSignup = { ticket: result.ticket, name: result.lineName };
-    } else {
-      setSession(result);
-      toast(`歡迎回來，${result.member.name}！`);
+      state.pendingSignup = { ticket: result.ticket, name: result.lineName, returnHash: login.returnHash };
+      state.authBusy = false;
+      route(); // 新會員先在會員頁填註冊資料
+      return true;
     }
+    setSession(result);
+    toast(`歡迎回來，${result.member.name}！`);
+    state.authBusy = false;
+    goAfterLogin(login.returnHash);
+    return true;
   } catch (err) {
     toast(err.message);
   }
@@ -1365,10 +1413,11 @@ async function signUp(form) {
       phone: form.elements.phone.value.trim(),
       email: form.elements.email.value.trim(),
     });
+    const { returnHash } = state.pendingSignup;
     state.pendingSignup = null;
     setSession(result);
     toast(`註冊成功，歡迎 ${result.member.name}！`);
-    renderMember();
+    goAfterLogin(returnHash);
   } catch (err) {
     if (err.expired) {
       state.pendingSignup = null;
