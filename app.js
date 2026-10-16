@@ -1412,6 +1412,7 @@ async function signUp(form) {
       name: form.elements.name.value.trim(),
       phone: form.elements.phone.value.trim(),
       email: form.elements.email.value.trim(),
+      shopee: form.elements.shopee.value.trim(),
     });
     const { returnHash } = state.pendingSignup;
     state.pendingSignup = null;
@@ -1481,6 +1482,11 @@ function renderSignup({ name }) {
         <label class="field">Email
           <input name="email" type="email" required maxlength="100" placeholder="name@example.com" autocomplete="email">
         </label>
+        <label class="field">蝦皮帳號<small class="optional">選填</small>
+          <input name="shopee" maxlength="30" pattern="@?[A-Za-z0-9._]{3,30}" placeholder="例如 lucky_cat88" autocomplete="off"
+            title="只能有英文、數字、底線、句點，3～30 個字">
+          <small class="hint">有在蝦皮購買請填寫，蝦皮的消費才能參加每月排名。填寫後不能自行修改，請確認正確</small>
+        </label>
         <p class="form-error" id="signup-error" role="alert" hidden></p>
         <button class="btn btn-primary btn-block" type="submit">完成註冊</button>
         <button class="btn btn-light btn-block" type="button" data-action="cancel-signup">取消</button>
@@ -1528,8 +1534,65 @@ function renderMember() {
     </div>
     <div class="member-sections">
       <section class="panel"><h2>我的訂單</h2>${memberOrderList()}</section>
+      <section class="panel"><h2>蝦皮帳號</h2>${shopeePanel(member)}</section>
       <section class="panel"><h2>中獎紀錄</h2>${prizeList}</section>
     </div>`;
+}
+
+// 會員中心的蝦皮帳號：已綁定就顯示；沒綁定可以補填一次（之後要改請聯絡客服）
+function shopeePanel(member) {
+  if (member.shopee) {
+    return `
+      <p class="shopee-bound">已綁定 <b>${escapeHtml(member.shopee)}</b></p>
+      <p class="note">蝦皮的消費會一起計入每月排名。如需修改請聯絡客服。</p>`;
+  }
+  return `
+    <p class="note">有在蝦皮購買的話，綁定蝦皮帳號後，蝦皮的消費也能參加每月排名。<b>綁定後不能自行修改</b>，請確認正確。</p>
+    <form id="shopee-form" class="form shopee-form">
+      <label class="field">蝦皮帳號
+        <input name="shopee" required maxlength="30" pattern="@?[A-Za-z0-9._]{3,30}" placeholder="例如 lucky_cat88"
+          title="只能有英文、數字、底線、句點，3～30 個字" autocomplete="off">
+      </label>
+      <p class="form-error" id="shopee-error" role="alert" hidden></p>
+      <button class="btn btn-primary btn-sm" type="submit">綁定</button>
+    </form>`;
+}
+
+async function bindShopee(form) {
+  const shopee = form.elements.shopee.value.trim();
+  if (!confirmShopee(shopee)) return;
+  const button = form.querySelector('[type="submit"]');
+  const error = $('#shopee-error');
+  button.disabled = true;
+  error.hidden = true;
+  try {
+    const { member } = await callApi({ action: 'setShopee', token: state.sessionToken, shopee });
+    state.member = member;
+    save('member');
+    toast('蝦皮帳號綁定成功');
+    renderMember();
+  } catch (err) {
+    if (err.expired) {
+      clearSession();
+      toast(err.message);
+      renderMember();
+      return;
+    }
+    error.textContent = err.message;
+    error.hidden = false;
+    button.disabled = false;
+  }
+}
+
+// 綁定前再確認一次（綁定後不能自行修改）
+let shopeeConfirmTarget = '';
+function confirmShopee(shopee) {
+  if (shopeeConfirmTarget === shopee) return true;
+  shopeeConfirmTarget = shopee;
+  const error = $('#shopee-error');
+  error.textContent = `確定要綁定「${shopee}」嗎？綁定後不能自行修改。確定的話請再按一次「綁定」。`;
+  error.hidden = false;
+  return false;
 }
 
 /* =========================================================
@@ -1657,6 +1720,7 @@ const FORMS = {
   'pickup-form': submitPickup,
   'profit-form': () => {}, // 邊輸入邊算，按 Enter 不必送出
   'signup-form': signUp,
+  'shopee-form': bindShopee,
 };
 
 document.addEventListener('click', (e) => {

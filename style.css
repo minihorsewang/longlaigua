@@ -911,6 +911,11 @@ body.cart-open .side-tab { opacity: 0; pointer-events: none; }
 .member-card > div { flex: 1; min-width: 0; }
 .member-name { font-size: 1.25rem; font-weight: 800; }
 .member-code { font-size: .85rem; letter-spacing: .5px; }
+.field .optional { margin-left: 6px; color: var(--muted); font-size: .75rem; font-weight: 400; }
+.shopee-bound { margin: 0 0 6px; }
+.shopee-bound b { font-family: ui-monospace, Consolas, monospace; }
+.shopee-form { gap: 8px; margin-top: 8px; }
+.shopee-form .btn { align-self: flex-start; }
 .member-linked { margin: 0 0 4px; padding: 8px 12px; border-radius: 10px; background: #e3f6f1; color: #1f7a6f; font-size: .85rem; }
 .success .member-linked { display: inline-block; }
 .order-list li { align-items: flex-start; }
