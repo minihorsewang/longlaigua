@@ -65,17 +65,6 @@ const DEFAULT_PRODUCTS = [
   { id: 'p13', category: 'goods', name: '帆布托特包', emoji: '👜', price: 450, tag: '新品' },
 ];
 
-const WINNERS = [
-  { name: '王*明', prize: '頭獎 NT$10,000', event: 'e1', date: '2026-10-06' },
-  { name: '陳*華', prize: '二獎 NT$1,000', event: 'e1', date: '2026-10-05' },
-  { name: '林*君', prize: '500 點', event: 'e2', date: '2026-10-05' },
-  { name: '張*豪', prize: '三獎 NT$500', event: 'e1', date: '2026-10-04' },
-  { name: '黃*婷', prize: '1,000 點', event: 'e2', date: '2026-10-03' },
-  { name: '李*傑', prize: '頭獎 NT$8,888', event: 'e4', date: '2026-10-01' },
-  { name: '吳*芳', prize: '月餅禮盒', event: 'e4', date: '2026-09-28' },
-  { name: '劉*宏', prize: '二獎 NT$1,000', event: 'e4', date: '2026-09-22' },
-  { name: '蔡*玲', prize: '三獎 NT$500', event: 'e4', date: '2026-09-18' },
-];
 
 // 效益試算的預設值（依「刮刮卡娃娃機獲利試算_基礎計算邏輯」測試案例 1）
 const PROFIT_DEFAULTS = {
@@ -124,6 +113,7 @@ const state = {
   profit: load('profit', structuredClone(PROFIT_DEFAULTS)), // 效益試算上次輸入的內容
   member: load('member', null),             // 登入中的會員資料（以 Google 試算表為準，這裡是快取）
   sessionToken: load('sessionToken', null), // Apps Script 發的登入憑證
+  ranking: load('ranking', null),           // 已公布的每月消費排名（快取）：[{ month, entries: [{ rank, name }] }]
   pendingSignup: null,                      // LINE 驗證通過、但還沒填完註冊資料：{ ticket, name }
   authBusy: false,                          // 正在跟 LINE／試算表確認登入
   memberOrders: null,                       // 會員訂單（從試算表讀）：null 未讀取、'loading'、'error' 或陣列
@@ -193,9 +183,12 @@ function toast(message) {
    ========================================================= */
 
 function renderAnnounce() {
+  // 最新公布的月份第 1 名，放進跑馬燈
+  const latest = Array.isArray(state.ranking) ? state.ranking[0] : null;
+  const champions = latest ? latest.entries.filter((e) => e.rank === 1) : [];
   const items = [
     ...ANNOUNCEMENTS.map((text) => `<span>${text}</span>`),
-    ...WINNERS.slice(0, 4).map((w) => `<span>🎉 恭喜 ${w.name} 抽中 <b>${w.prize}</b></span>`),
+    ...champions.map((e) => `<span>🏆 恭喜 ${escapeHtml(e.name)} 獲得 <b>${monthLabel(latest.month)}消費排名第 1 名</b></span>`),
   ].join('');
   $('#announce').innerHTML = `
     <div class="announce-group">${items}</div>
@@ -479,39 +472,72 @@ function search(form) {
 }
 
 /* =========================================================
-   中獎
+   中獎：每月消費排名（店家在試算表計算、勾選「公布」後才會出現）
    ========================================================= */
 
-let winnerFilter = 'all';
+let winnerMonth = null; // 目前選的月份（yyyy-MM），null＝最新一個月
 
-function renderWinners() {
-  const list = WINNERS.filter((w) => winnerFilter === 'all' || w.event === winnerFilter);
-  const options = EVENTS.map((e) => `
-    <option value="${e.id}" ${e.id === winnerFilter ? 'selected' : ''}>${e.title}</option>`).join('');
+const monthLabel = (ym) => `${ym.slice(0, 4)} 年 ${Number(ym.slice(5, 7))} 月`;
 
-  $('#page-winners').innerHTML = `
-    ${pageHead('中獎名單', '恭喜以下得獎者！獎項將於活動結束後 7 個工作天內寄出')}
-    <div class="toolbar">
-      <label class="sr-only" for="winner-filter">選擇活動</label>
-      <select id="winner-filter" class="select">
-        <option value="all">全部活動</option>
-        ${options}
-      </select>
-      <span class="muted small">共 ${list.length} 位得獎者</span>
-    </div>
-    ${list.length
-      ? `<ul class="winner-list">${list.map(winnerRow).join('')}</ul>`
-      : emptyBox('🏆', '此活動尚未公布中獎名單')}`;
+async function loadRanking() {
+  if (!ORDER_API_URL) return;
+  try {
+    const res = await fetch(`${ORDER_API_URL}?action=ranking`);
+    const result = await res.json();
+    if (!result.ok || !Array.isArray(result.months)) return;
+    state.ranking = result.months
+      .filter((m) => /^\d{4}-\d{2}$/.test(m.month) && Array.isArray(m.entries))
+      .map((m) => ({ month: m.month, entries: m.entries.map((e) => ({ rank: Number(e.rank), name: String(e.name) })) }));
+    save('ranking');
+  } catch {
+    return; // 讀不到就沿用快取
+  }
+  renderAnnounce();
+  if (!$('#page-winners').hidden) renderWinners();
 }
 
-function winnerRow(w) {
-  const ev = EVENTS.find((e) => e.id === w.event);
-  return `
-    <li>
-      <span class="avatar" aria-hidden="true">${w.name[0]}</span>
-      <div class="winner-main"><strong>${w.name}</strong><span class="prize-text">${w.prize}</span></div>
-      <div class="winner-meta">${ev ? ev.title : ''}<br>${w.date}</div>
-    </li>`;
+function renderWinners() {
+  const months = Array.isArray(state.ranking) ? state.ranking : [];
+  const current = months.find((m) => m.month === winnerMonth) ?? months[0];
+  const rules = `
+    <details class="panel rank-rules">
+      <summary>參加方式與規則</summary>
+      <ul>
+        <li>須為龍來刮<b>網站會員</b>（<a href="#member">用 LINE 登入註冊</a>）</li>
+        <li>網站、<b>蝦皮</b>、<b>賣貨便</b>的消費<b>合併計算</b>，以商品售價計算（不含運費，優惠券折抵前）</li>
+        <li>蝦皮：請在會員中心<b>綁定蝦皮帳號</b>；賣貨便：請用<b>會員註冊的手機</b>收件</li>
+        <li>每月結算上個月，<b>第 1 名</b>可獲得獎品，我們會以 LINE 或電話聯絡得獎者</li>
+        <li>取消、退貨的訂單不列入計算；店家保有活動解釋與調整的權利</li>
+      </ul>
+    </details>`;
+
+  if (!current) {
+    $('#page-winners').innerHTML = `
+      ${pageHead('每月消費排名', '網站、蝦皮、賣貨便的消費合併計算，每月第 1 名可獲得獎品')}
+      ${emptyBox('🏆', '每月排名公布後會顯示在這裡')}
+      ${rules}`;
+    return;
+  }
+
+  const options = months.map((m) => `
+    <option value="${m.month}" ${m.month === current.month ? 'selected' : ''}>${monthLabel(m.month)}</option>`).join('');
+  const rows = current.entries.map((e) => `
+    <li class="${e.rank === 1 ? 'champion' : ''}">
+      <span class="rank-no" aria-label="第 ${e.rank} 名">${e.rank === 1 ? '🏆' : e.rank}</span>
+      <div class="winner-main"><strong>${escapeHtml(e.name)}</strong>
+        ${e.rank === 1 ? '<span class="prize-text">本月得主</span>' : ''}</div>
+      <div class="winner-meta">第 ${e.rank} 名</div>
+    </li>`).join('');
+
+  $('#page-winners').innerHTML = `
+    ${pageHead('每月消費排名', '網站、蝦皮、賣貨便的消費合併計算，每月第 1 名可獲得獎品')}
+    <div class="toolbar">
+      <label class="sr-only" for="winner-filter">選擇月份</label>
+      <select id="winner-filter" class="select">${options}</select>
+      <span class="muted small">${monthLabel(current.month)}前 ${current.entries.length} 名</span>
+    </div>
+    <ul class="winner-list">${rows}</ul>
+    ${rules}`;
 }
 
 /* =========================================================
@@ -1740,7 +1766,7 @@ document.addEventListener('submit', (e) => {
 
 document.addEventListener('change', (e) => {
   if (e.target.id !== 'winner-filter') return;
-  winnerFilter = e.target.value;
+  winnerMonth = e.target.value;
   renderWinners();
   $('#winner-filter').focus();
 });
@@ -1770,4 +1796,5 @@ updateCartBadge();
 renderCartDrawer();
 route();
 loadProducts();
+loadRanking();
 handleLineCallback().then((handled) => { if (!handled) refreshMember(); });
