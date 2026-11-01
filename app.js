@@ -1268,7 +1268,58 @@ const PROVIDERS = {
   line: { name: 'LINE', icon: LINE_ICON },
 };
 
-const LINE_STATE_KEY = 'lucky-scratch:lineLogin'; // sessionStorage：防偽造用的 state 與 nonce
+const LINE_STATE_KEY = 'lucky-scratch:lineLogin';
+const LINE_LOGIN_TTL = 10 * 60 * 1000;
+const LINE_PENDING_PREFIX = LINE_STATE_KEY + ':pending:';
+
+// 依隨機 state 分開保存，讓 LINE App 回到同一瀏覽器的新分頁時仍能驗證。
+// 不把 nonce 放進回傳網址，也不接受沒有本機登入紀錄的回傳。
+function saveLineAttempt(login) {
+  const now = Date.now();
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith(LINE_PENDING_PREFIX)) continue;
+      try {
+        const old = JSON.parse(localStorage.getItem(key));
+        if (!old || !Number.isFinite(old.createdAt) || now - old.createdAt > LINE_LOGIN_TTL) localStorage.removeItem(key);
+      } catch { localStorage.removeItem(key); }
+    }
+    localStorage.setItem(LINE_PENDING_PREFIX + login.state, JSON.stringify({ ...login, createdAt: now }));
+    return true;
+  } catch {
+    // 禁止共用儲存時仍可在原分頁登入；跨分頁需重新登入。
+    try {
+      sessionStorage.setItem(LINE_STATE_KEY, JSON.stringify({ ...login, createdAt: now }));
+      return true;
+    } catch { return false; }
+  }
+}
+
+function consumeLineAttempt(returnedState) {
+  if (!returnedState || !/^[a-zA-Z0-9-]{20,100}$/.test(returnedState)) return null;
+  let login = null;
+  try {
+    const key = LINE_PENDING_PREFIX + returnedState;
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      localStorage.removeItem(key); // 用過即移除，重整不再重送授權碼。
+      login = JSON.parse(raw);
+    }
+  } catch { /* 儲存不可用時檢查原分頁備援。 */ }
+  if (!login) {
+    try {
+      const raw = sessionStorage.getItem(LINE_STATE_KEY);
+      const fallback = raw ? JSON.parse(raw) : null;
+      if (fallback?.state === returnedState) {
+        sessionStorage.removeItem(LINE_STATE_KEY);
+        login = fallback;
+      }
+    } catch { return null; }
+  }
+  const age = Date.now() - login?.createdAt;
+  return login?.state === returnedState && typeof login.nonce === 'string' && login.nonce.length >= 20 &&
+    Number.isFinite(age) && age >= 0 && age <= LINE_LOGIN_TTL ? login : null;
+}
 
 const CHECKOUT_PAGES = ['#order', '#pickup'];
 
@@ -1290,10 +1341,8 @@ function signIn() {
     // 從結帳頁登入的，登入完要回到結帳頁
     returnHash: CHECKOUT_PAGES.includes(location.hash) ? location.hash : '#member',
   };
-  try {
-    sessionStorage.setItem(LINE_STATE_KEY, JSON.stringify(login));
-  } catch {
-    toast('瀏覽器無法暫存登入資料，請關閉無痕模式後再試');
+  if (!saveLineAttempt(login)) {
+    toast('瀏覽器無法暫存登入資料，請使用一般 Safari 或 Chrome 再試');
     return;
   }
   const params = new URLSearchParams({
@@ -1313,13 +1362,7 @@ async function handleLineCallback() {
   const params = new URLSearchParams(location.search);
   if (!params.has('code') && !params.has('error')) return false;
 
-  let login = null;
-  try {
-    login = JSON.parse(sessionStorage.getItem(LINE_STATE_KEY));
-    sessionStorage.removeItem(LINE_STATE_KEY);
-  } catch {
-    // 讀不到就當作驗證失敗
-  }
+  const login = consumeLineAttempt(params.get('state'));
   // 把 ?code= 從網址拿掉，避免重新整理時重複使用；登入結果顯示在會員頁
   history.replaceState(null, '', location.pathname + '#member');
 
@@ -1328,7 +1371,7 @@ async function handleLineCallback() {
     return true;
   }
   if (!login || params.get('state') !== login.state) {
-    toast('登入驗證失敗，請重新登入');
+    toast('登入資料已逾時或在其他瀏覽器開啟，請在目前瀏覽器重新點 LINE 登入');
     return true;
   }
 
