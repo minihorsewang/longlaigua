@@ -1303,7 +1303,7 @@ function signIn() {
     state: login.state,
     nonce: login.nonce,
     scope: 'profile openid',
-    bot_prompt: 'normal', // 同意畫面附「加入官方帳號好友」選項（預設勾選）
+    bot_prompt: 'normal', // 已連結官方帳號時顯示加入好友選項，是否勾選由 LINE 與使用者決定
   });
   location.href = `https://access.line.me/oauth2/v2.1/authorize?${params}`;
 }
@@ -1736,6 +1736,16 @@ const ACTIONS = {
   'open-drawer': openDrawer,
   'drawer-tab': (el) => setDrawerTab(el.dataset.id),
   'close-drawer': closeDrawer,
+  // 浮動入口：已登入不重複授權，登入確認中避免再次啟動。
+  'line-entry': () => {
+    if (state.authBusy) { toast('正在確認登入，請稍候'); return; }
+    if (currentMember() || state.pendingSignup) {
+      if (location.hash === '#member') renderMember();
+      else location.hash = '#member';
+      return;
+    }
+    signIn();
+  },
   'sign-in': signIn,
   'cancel-signup': cancelSignup,
   'logout': logout,

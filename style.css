@@ -1009,3 +1009,35 @@ body.cart-open .side-tab { opacity: 0; pointer-events: none; }
   .cat-hero-note { letter-spacing: 0; }
 }
 .site-footer { color: #806554; }
+
+/* LINE 固定入口：不遮住購物車、全螢幕選單與手機安全區。 */
+.line-floating {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px 12px 12px;
+  border: 1px solid #087a39;
+  border-radius: 16px;
+  color: #fff;
+  background: #067c38;
+  box-shadow: 0 6px 22px #124e2c33;
+  cursor: pointer;
+  font-weight: 800;
+  text-align: left;
+}
+.line-floating svg { width: 36px; height: 36px; flex: none; }
+.line-floating small { display: block; font-size: .68rem; font-weight: 400; margin-top: 2px; }
+.line-floating:hover { background: #056b30; }
+.line-floating:focus-visible { outline: 3px solid #183e2c; outline-offset: 4px; }
+body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hidden; }
+/* 頁尾留出按鈕空間，避免蓋住最後一段文字。 */
+.site-footer { padding-bottom: calc(108px + env(safe-area-inset-bottom)); }
+@media (max-width: 600px) {
+  .line-floating { right: max(12px, env(safe-area-inset-right)); padding: 9px 12px 9px 8px; border-radius: 12px; }
+  .line-floating svg { width: 30px; height: 30px; }
+  .toast { bottom: calc(106px + env(safe-area-inset-bottom)); }
+}
