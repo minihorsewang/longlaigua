@@ -1444,6 +1444,7 @@ function setSession({ token, member }) {
 }
 
 function clearSession() {
+  memberEditing = false;
   state.sessionToken = null;
   state.member = null;
   state.memberOrders = null;
@@ -1604,6 +1605,56 @@ function renderSignup({ name }) {
     </div>`;
 }
 
+let memberEditing = false;
+let memberEditSaving = false;
+function renderMemberEdit(member) {
+  return `<section class="panel auth-box">
+    <h1 class="page-title">修改會員資料</h1>
+    <p class="note">不會更改已成立訂單的收件資料。蝦皮帳號如需修改，請聯絡 LINE 客服。</p>
+    <form id="member-edit-form" class="form">
+      <label class="field">姓名<input name="name" required maxlength="20" autocomplete="name" value="${escapeHtml(member.name)}"></label>
+      <label class="field">手機<input name="phone" type="tel" required pattern="09\\d{8}" maxlength="10" autocomplete="tel" title="請輸入 09 開頭的 10 碼手機號碼" value="${escapeHtml(member.phone)}"></label>
+      <label class="field">Email<input name="email" type="email" required maxlength="100" autocomplete="email" value="${escapeHtml(member.email)}"></label>
+      <p class="form-error" id="member-edit-error" role="alert" hidden></p>
+      <button type="submit" class="btn btn-primary btn-block">儲存修改</button>
+      <button type="button" class="btn btn-light btn-block" data-action="cancel-member-edit">取消</button>
+    </form>
+  </section>`;
+}
+async function saveMemberEdit(form) {
+  if (memberEditSaving || !state.sessionToken) return;
+  const token = state.sessionToken;
+  const buttons = [...form.querySelectorAll('button')];
+  const error = form.querySelector('#member-edit-error');
+  memberEditSaving = true;
+  buttons.forEach(button => { button.disabled = true; });
+  buttons[0].textContent = '儲存中…';
+  error.hidden = true;
+  try {
+    const { member } = await callApi({ action: 'updateMember', token,
+      name: form.elements.name.value.trim(), phone: form.elements.phone.value.trim(), email: form.elements.email.value.trim() });
+    if (state.sessionToken !== token) return; // 已登出或切換帳號，不回填舊請求。
+    state.member = member;
+    save('member');
+    memberEditing = false;
+    updateLineFloating();
+    toast('會員資料已更新');
+    if (!$('#page-member').hidden) renderMember();
+  } catch (err) {
+    if (state.sessionToken !== token) return;
+    if (err.expired) {
+      memberEditing = false;
+      clearSession();
+      toast(err.message);
+      if (!$('#page-member').hidden) renderMember();
+    } else { error.textContent = err.message; error.hidden = false; }
+  } finally {
+    memberEditSaving = false;
+    buttons.forEach(button => { button.disabled = false; });
+    buttons[0].textContent = '儲存修改';
+  }
+}
+
 function renderMember() {
   const el = $('#page-member');
   const member = currentMember();
@@ -1617,6 +1668,11 @@ function renderMember() {
     return;
   }
 
+  if (memberEditing) {
+    // 訂單非同步更新畫面時保留編輯中的輸入，避免被重畫清空。
+    if (!$('#member-edit-form')) el.innerHTML = renderMemberEdit(member);
+    return;
+  }
   if (state.memberOrders === null) loadMemberOrders();
   const orderCount = Array.isArray(state.memberOrders) ? state.memberOrders.length : '—';
   const prizeList = member.prizes.length
@@ -1635,7 +1691,7 @@ function renderMember() {
         <span class="level">${memberLevel(member.points)}</span>
         <span class="level level-provider">${provider.icon}${provider.name} 登入</span>
       </div>
-      <button class="btn btn-ghost btn-sm" data-action="logout">登出</button>
+      <div class="actions"><button class="btn btn-ghost btn-sm" data-action="edit-member">修改會員資料</button><button class="btn btn-ghost btn-sm" data-action="logout">登出</button></div>
     </div>
     <div class="stats">
       <div class="stat"><b>${member.points.toLocaleString('zh-TW')}</b><span>我的點數</span></div>
@@ -1821,6 +1877,8 @@ const ACTIONS = {
   'drawer-tab': (el) => setDrawerTab(el.dataset.id),
   'close-drawer': closeDrawer,
   'line-entry': openLineEntry,
+  'edit-member': () => { if (currentMember()) { memberEditing = true; renderMember(); } },
+  'cancel-member-edit': () => { if (!memberEditSaving) { memberEditing = false; renderMember(); } },
   'sign-in': signIn,
   'cancel-signup': cancelSignup,
   'logout': logout,
@@ -1831,6 +1889,7 @@ const FORMS = {
   'pickup-form': submitPickup,
   'profit-form': () => {}, // 邊輸入邊算，按 Enter 不必送出
   'signup-form': signUp,
+  'member-edit-form': saveMemberEdit,
   'shopee-form': bindShopee,
 };
 
