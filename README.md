@@ -351,3 +351,22 @@ python -m http.server 5173
 - 若使用者自行在 LINE 頁面選擇「使用 LINE 程式登入」，仍可能發生跨瀏覽器，並不宣稱已支援此路徑。會員登入頁已註明使用網頁認證。
 - 此修正改變登入方式，沒有實作跨瀏覽器 App 登入；若必須支援 App 登入，需另行設計並驗證完整的登入交接流程。
 - 自動測試通過：首次登入參數、安全驗證參數、結帳返回目的地保留、移除自動重試；iPhone 真機網頁登入仍需本人確認。
+
+### LIFF App 登入準備中（尚未啟用）
+
+- 目標：從網站點 LINE 入口 → 官方 LIFF URL 開啟 LINE → 在 LIFF 會員頁完成驗證、註冊與下單，不把登入憑證帶回另一個瀏覽器。
+- 新增 line-config.js（LIFF ID／啟用開關）、liff.html（App 會員入口）、liff-entry.js（SDK 初始化與登入交接）。
+- 後端新增 liffLogin：向 LINE 驗證 ID token，再核對頻道、發行者、有效期限及身分；與原 lineLogin 共用會員查找與註冊流程。
+- APP_LINE_CONFIG.enabled 目前為 false，LIFF ID 空白，正式網站尚未切換，本機程式完成不代表 App 登入已成功。
+- 不需要新增 Email 或傳送訊息權限，只沿用 openid、profile。
+
+啟用順序：
+
+1. 用管理者登入 LINE Developers，選原「龍來刮 會員登入」channel（2011980723）。
+2. 在 LIFF 頁籤新增 App，名稱「龍來刮會員中心」，Size 選 Full，Endpoint URL 設 https://minihorsewang.github.io/longlaigua/liff.html（不可附 #member），Scope 勾 openid、profile；有連結官方帳號時加入好友選項可選 normal。
+3. 記下公開的 LIFF ID，填入 line-config.js；先發布檔案並保持 enabled:false，讓 Endpoint 存在。
+4. 核對雲端 Apps Script 與本機的差異，保留既有功能後部署含 liffLogin 的新版本，沿用原 /exec 網址。
+5. 後端部署後再將 enabled 設 true 並發布；不可先啟用前台，以免後端不支援新 action。
+6. 手機從網站點 LINE 入口，確認透過 LIFF 開啟會員頁，老會員進會員中心，新會員填註冊表；分別重測購物車、結帳與登出。原瀏覽器不會同步成已登入，會員操作在 LINE 的 LIFF 頁面進行。
+
+目前檢查：前後端語法通過；模擬有效憑證可進會員共用流程，錯誤頻道、發行者、逾時、空身分、無效 token 均拒絕。未設定 LIFF 時不執行新登入。不等同真機實測。

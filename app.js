@@ -1331,6 +1331,16 @@ function goAfterLogin(returnHash) {
 }
 
 function signIn() {
+  // 只在後端與 LIFF 設定都完成後切換。官方 LIFF 網址負責開啟 LINE App。
+  if (typeof APP_LINE_CONFIG !== 'undefined' && APP_LINE_CONFIG.enabled && APP_LINE_CONFIG.liffId) {
+    const target = CHECKOUT_PAGES.includes(location.hash) ? location.hash.slice(1) : 'member';
+    const params = new URLSearchParams({ target });
+    // 僅傳商品編號與數量；不傳會員資料或登入憑證，金額仍由後端重算。
+    const items = state.cart.map(item => ({ id: item.id, qty: item.qty }));
+    if (items.length && items.length <= 50) params.set('cart', JSON.stringify(items));
+    location.href = 'https://liff.line.me/' + encodeURIComponent(APP_LINE_CONFIG.liffId) + '/?' + params;
+    return;
+  }
   if (location.origin + location.pathname !== LINE_LOGIN.redirectUri) {
     toast('LINE 登入只能在正式網站使用');
     return;
@@ -1528,7 +1538,9 @@ function renderLogin() {
       <div class="social-btns">
         <button class="btn-social btn-line" data-action="sign-in">${LINE_ICON}使用 LINE 登入</button>
       </div>
-      <p class="note">請在 LINE 官方網頁確認帳號或輸入帳密；為避免手機切換瀏覽器，請勿選擇「使用 LINE 程式登入」。帳密只輸入在 LINE 官方頁面。</p>
+      <p class="note">${typeof APP_LINE_CONFIG !== 'undefined' && APP_LINE_CONFIG.enabled
+        ? '點擊後透過 LINE 開啟會員頁並確認身分，第一次使用需完成註冊。'
+        : '請在 LINE 官方網頁確認帳號或輸入帳密；為避免手機切換瀏覽器，請勿選擇「使用 LINE 程式登入」。帳密只輸入在 LINE 官方頁面。'}</p>
       <ul class="perks">
         <li>🧾 訂單紀錄隨時查詢</li>
         <li>💎 會員日點數 2 倍送</li>
@@ -1853,4 +1865,6 @@ renderCartDrawer();
 route();
 loadProducts();
 loadRanking();
-handleLineCallback().then((handled) => { if (!handled) refreshMember(); });
+if (document.body.dataset.liffEntry !== 'true') {
+  handleLineCallback().then((handled) => { if (!handled) refreshMember(); });
+}
