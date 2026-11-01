@@ -5,7 +5,7 @@ async function startLiffMember() {
   const memberPage = document.getElementById('page-member');
   function showLiffError(message) {
     state.authBusy = false;
-    location.hash = '#member';
+    history.replaceState(null, '', location.pathname + '#member');
     document.querySelectorAll('main .page').forEach(page => { page.hidden = page !== memberPage; });
     memberPage.innerHTML = '<div class="panel auth-box"><h1>LINE 會員登入</h1><p id="liff-error-message"></p><a class="btn btn-primary" href="./#member">返回網站</a></div>';
     document.getElementById('liff-error-message').textContent = message;
@@ -19,8 +19,9 @@ async function startLiffMember() {
     return;
   }
   state.authBusy = true;
-  location.hash = '#member';
-  route();
+  // SDK 初始化前保持網址完整，尤其不能先清除 liff.state 或授權參數。
+  document.querySelectorAll('main .page').forEach(page => { page.hidden = page !== memberPage; });
+  memberPage.innerHTML = '<div class="panel auth-box"><h1>正在確認 LINE 登入…</h1><p>請稍候，完成後會進入會員頁。</p></div>';
   try {
     await liff.init({ liffId: APP_LINE_CONFIG.liffId });
     // 外部瀏覽器未登入時交給 SDK 處理，不自行製作授權 URL 或放寬驗證。

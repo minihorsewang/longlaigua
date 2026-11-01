@@ -1338,7 +1338,7 @@ function signIn() {
     // 僅傳商品編號與數量；不傳會員資料或登入憑證，金額仍由後端重算。
     const items = state.cart.map(item => ({ id: item.id, qty: item.qty }));
     if (items.length && items.length <= 50) params.set('cart', JSON.stringify(items));
-    location.href = 'https://liff.line.me/' + encodeURIComponent(APP_LINE_CONFIG.liffId) + '/?' + params;
+    location.href = 'https://liff.line.me/' + encodeURIComponent(APP_LINE_CONFIG.liffId) + '?' + params;
     return;
   }
   if (location.origin + location.pathname !== LINE_LOGIN.redirectUri) {

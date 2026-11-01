@@ -370,3 +370,21 @@ python -m http.server 5173
 6. 手機從網站點 LINE 入口，確認透過 LIFF 開啟會員頁，老會員進會員中心，新會員填註冊表；分別重測購物車、結帳與登出。原瀏覽器不會同步成已登入，會員操作在 LINE 的 LIFF 頁面進行。
 
 目前檢查：前後端語法通過；模擬有效憑證可進會員共用流程，錯誤頻道、發行者、逾時、空身分、無效 token 均拒絕。未設定 LIFF 時不執行新登入。不等同真機實測。
+
+### LIFF 部署進度（2026-11-01）
+
+- 已以管理帳號登入 LINE Developers，確認 channel 尚無 LIFF App；建立表單已填妥，尚未按 Add，等待使用者確認。
+- LIFF 網站準備版 a832678 已部署成功，liff.html HTTP 200；enabled 仍為 false，正式會員入口不切換。
+- 雲端 Apps Script 基底與本機原有程式核對一致，只新增 LIFF 驗證與共用會員流程，已發布第 10 版，沿用原 /exec。
+- 真實 API 測試：action=liffLogin 搭配無效測試 token 回傳 ok:false，未新增會員或訂單。
+- 待辦：確認建立 LIFF → 取得 LIFF ID → 設定並啟用 → 手機實測。頻道目前為 Developing，公開給所有顧客前需確認發布狀態。
+
+### LIFF 已建立與啟用（2026-11-01）
+
+- 使用者已確認建立 LIFF 與使用 openid／profile，加入好友為 normal，未新增 Email／傳訊權限。
+- LIFF ID：2011980723-3dySl95Q；入口：https://liff.line.me/2011980723-3dySl95Q
+- Endpoint：https://minihorsewang.github.io/longlaigua/liff.html；Size：Full。
+- 前台 enabled 已設 true，後端第 10 版已支援 liffLogin。
+- 已修正初始化前不得改回傳網址、LIFF 入口不得多接 / 路徑；版本標記 liff2。
+- 模擬測試通過：初始化順序、新／舊會員分流、商品數量交接、非法返回網址與錯誤數量拒絕。後端無效 token 真實測試已通過。
+- LINE Login channel 仍為 Developing；未改為 Published，非管理／測試角色可能無法登入。真機首次登入仍待使用者測試，不等同完整驗證成功。
