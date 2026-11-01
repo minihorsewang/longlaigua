@@ -1252,6 +1252,7 @@ async function submitPickup(form) {
         <a class="btn btn-light" href="#products">繼續購物</a>
       </div>
     </div>`;
+  updateLineFloating();
   window.scrollTo(0, 0);
 }
 
@@ -1410,12 +1411,36 @@ async function handleLineCallback() {
   return true;
 }
 
+// 已登入改為官方帳號客服入口；會員中心仍由上方會員選單進入。
+const LINE_SERVICE_URL = 'https://line.me/R/oaMessage/%40902rnber';
+function updateLineFloating() {
+  const button = document.getElementById('line-floating');
+  if (!button) return;
+  const loggedIn = !!currentMember();
+  const label = loggedIn ? 'LINE 客服' : 'LINE 登入';
+  const hint = loggedIn ? '聯絡龍來刮客服' : '加入好友・會員中心';
+  button.querySelector('span').innerHTML = label + '<small>' + hint + '</small>';
+  button.setAttribute('aria-label', loggedIn ? '開啟龍來刮 LINE 客服聊天室' : 'LINE 登入或進入會員中心');
+  button.title = loggedIn ? 'LINE 客服' : 'LINE 登入／會員中心';
+}
+function openLineEntry() {
+  if (state.authBusy) { toast('正在確認登入，請稍候'); return; }
+  if (currentMember()) { location.href = LINE_SERVICE_URL; return; }
+  if (state.pendingSignup) {
+    if (location.hash === '#member') renderMember();
+    else location.hash = '#member';
+    return;
+  }
+  signIn();
+}
+
 function setSession({ token, member }) {
   state.sessionToken = token;
   state.member = member;
   state.memberOrders = null;
   save('sessionToken');
   save('member');
+  updateLineFloating();
 }
 
 function clearSession() {
@@ -1472,6 +1497,7 @@ async function refreshMember() {
     const { member } = await callApi({ action: 'me', token: state.sessionToken });
     state.member = member;
     save('member');
+    updateLineFloating();
   } catch (err) {
     if (!err.expired) return; // 連線問題就先沿用快取
     clearSession();
@@ -1794,16 +1820,7 @@ const ACTIONS = {
   'open-drawer': openDrawer,
   'drawer-tab': (el) => setDrawerTab(el.dataset.id),
   'close-drawer': closeDrawer,
-  // 浮動入口：已登入不重複授權，登入確認中避免再次啟動。
-  'line-entry': () => {
-    if (state.authBusy) { toast('正在確認登入，請稍候'); return; }
-    if (currentMember() || state.pendingSignup) {
-      if (location.hash === '#member') renderMember();
-      else location.hash = '#member';
-      return;
-    }
-    signIn();
-  },
+  'line-entry': openLineEntry,
   'sign-in': signIn,
   'cancel-signup': cancelSignup,
   'logout': logout,
