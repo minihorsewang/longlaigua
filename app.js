@@ -1330,7 +1330,7 @@ function goAfterLogin(returnHash) {
   else location.hash = target;
 }
 
-function signIn(options = {}) {
+function signIn() {
   if (location.origin + location.pathname !== LINE_LOGIN.redirectUri) {
     toast('LINE 登入只能在正式網站使用');
     return;
@@ -1352,27 +1352,10 @@ function signIn(options = {}) {
     state: login.state,
     nonce: login.nonce,
     scope: 'profile openid',
+    disable_auto_login: 'true', // 從第一次登入就留在瀏覽器，避免 App 返回其他瀏覽器。
     bot_prompt: 'normal', // 已連結官方帳號時顯示加入好友選項，是否勾選由 LINE 與使用者決定
   });
-  // 自動恢復時留在瀏覽器完成 LINE 認證，避免再次進入相同的 App 跳轉。
-  if (options.retry === true) params.set('disable_auto_login', 'true');
   location.href = `https://access.line.me/oauth2/v2.1/authorize?${params}`;
-}
-
-const LINE_RETRY_KEY = LINE_STATE_KEY + ':retry';
-// 只有具有效期的持久化防循環標記寫入成功，才允許自動重啟一次。
-function allowLineRetry() {
-  if (location.origin + location.pathname !== LINE_LOGIN.redirectUri) return false;
-  try {
-    const now = Date.now();
-    const previous = Number(localStorage.getItem(LINE_RETRY_KEY));
-    if (previous && now - previous < LINE_LOGIN_TTL) return false;
-    localStorage.setItem(LINE_RETRY_KEY, String(now));
-    return localStorage.getItem(LINE_RETRY_KEY) === String(now);
-  } catch { return false; }
-}
-function clearLineRetry() {
-  try { localStorage.removeItem(LINE_RETRY_KEY); } catch { /* 不影響登入結果。 */ }
 }
 
 // 網站載入時：如果是 LINE 登入完導回來的（網址帶 ?code= 或 ?error=），就完成登入
@@ -1389,13 +1372,8 @@ async function handleLineCallback() {
     return true;
   }
   if (!login || params.get('state') !== login.state) {
-    // 不採用驗證失敗的 code，產生全新的 state／nonce 重新向 LINE 認證。
-    if (allowLineRetry()) {
-      toast('正在銜接手機登入，請稍候…');
-      signIn({ retry: true });
-      return true;
-    }
-    toast('手機登入未能完成，請在目前瀏覽器重新點 LINE 登入');
+    route();
+    toast('登入資料已失效，請重新登入，並在 LINE 網頁使用帳號確認或帳密登入');
     return true;
   }
 
@@ -1403,7 +1381,6 @@ async function handleLineCallback() {
   route();
   try {
     const result = await callApi({ action: 'lineLogin', code: params.get('code'), nonce: login.nonce });
-    clearLineRetry();
     if (result.needSignup) {
       state.pendingSignup = { ticket: result.ticket, name: result.lineName, returnHash: login.returnHash };
       state.authBusy = false;
@@ -1546,11 +1523,12 @@ function renderLogin() {
       <div class="auth-head">
         <span class="auth-logo" aria-hidden="true">🎫</span>
         <h1 class="page-title">會員登入</h1>
-        <p class="page-sub">使用 LINE 帳號快速登入<br>第一次登入需填寫基本資料完成註冊</p>
+        <p class="page-sub">使用 LINE 帳號登入<br>第一次登入需填寫基本資料完成註冊</p>
       </div>
       <div class="social-btns">
         <button class="btn-social btn-line" data-action="sign-in">${LINE_ICON}使用 LINE 登入</button>
       </div>
+      <p class="note">請在 LINE 官方網頁確認帳號或輸入帳密；為避免手機切換瀏覽器，請勿選擇「使用 LINE 程式登入」。帳密只輸入在 LINE 官方頁面。</p>
       <ul class="perks">
         <li>🧾 訂單紀錄隨時查詢</li>
         <li>💎 會員日點數 2 倍送</li>
