@@ -1508,6 +1508,10 @@ async function refreshMember() {
 }
 
 async function signUp(form) {
+  if (!TAIWAN_COUNTIES.includes(state.pendingSignup?.county)) {
+    toast('請先選擇所在縣市');
+    return;
+  }
   const button = form.querySelector('[type="submit"]');
   const error = $('#signup-error');
   button.disabled = true;
@@ -1517,6 +1521,7 @@ async function signUp(form) {
     const result = await callApi({
       action: 'signup',
       ticket: state.pendingSignup.ticket,
+      county: state.pendingSignup.county,
       name: form.elements.name.value.trim(),
       phone: form.elements.phone.value.trim(),
       email: form.elements.email.value.trim(),
@@ -1560,7 +1565,7 @@ function renderLogin() {
       <div class="auth-head">
         <span class="auth-logo" aria-hidden="true">🎫</span>
         <h1 class="page-title">會員登入</h1>
-        <p class="page-sub">使用 LINE 帳號登入<br>第一次登入需填寫基本資料完成註冊</p>
+        <p class="page-sub">使用 LINE 帳號登入<br>首次註冊請先選擇縣市，再填寫基本資料</p>
       </div>
       <div class="social-btns">
         <button class="btn-social btn-line" data-action="sign-in">${LINE_ICON}使用 LINE 登入</button>
@@ -1576,26 +1581,66 @@ function renderLogin() {
     </div>`;
 }
 
-function renderSignup({ name }) {
+const TAIWAN_COUNTIES = ['臺北市', '新北市', '基隆市', '桃園市', '新竹市', '新竹縣', '苗栗縣', '臺中市', '彰化縣', '南投縣', '雲林縣', '嘉義市', '嘉義縣', '臺南市', '高雄市', '屏東縣', '宜蘭縣', '花蓮縣', '臺東縣', '澎湖縣', '金門縣', '連江縣'];
+
+function renderCountyPicker(pending) {
+  const county = TAIWAN_COUNTIES.includes(pending.county) ? pending.county : '';
+  const paths = typeof TAIWAN_COUNTY_PATHS === 'undefined' ? [] : TAIWAN_COUNTY_PATHS;
+  return `<section class="panel auth-box county-picker">
+    <span class="provider-badge provider-line">${LINE_ICON}已透過 LINE 驗證</span>
+    <p class="signup-step">步驟 1 / 2 · 選擇縣市</p>
+    <h1 class="page-title">你從哪裡來？</h1>
+    <p class="page-sub">點選地圖或下方縣市，與龍來刮相遇</p>
+    <div class="county-map-wrap"><svg class="county-map" viewBox="0 0 460 620" aria-label="台灣縣市選擇地圖">
+      ${paths.map(p => `<path d="${p.d}" class="county-region${county === p.name ? ' is-selected' : ''}" data-action="select-county" data-county="${escapeHtml(p.name)}" role="button" tabindex="0" aria-label="${escapeHtml(p.name)}" aria-pressed="${county === p.name}"><title>${escapeHtml(p.name)}</title></path>`).join('')}
+      <text x="50" y="145" class="county-map-label">連江</text><text x="50" y="230" class="county-map-label">金門</text><text x="50" y="575" class="county-map-label">澎湖</text>
+    </svg></div>
+    <div class="county-selection" role="status">${county ? `已選擇：${escapeHtml(county)}` : '請選擇你的所在縣市'}</div>
+    <div class="county-options" aria-label="縣市清單">${TAIWAN_COUNTIES.map(name => `<button type="button" class="county-option${county === name ? ' is-selected' : ''}" data-action="select-county" data-county="${name}" aria-pressed="${county === name}">${name}</button>`).join('')}</div>
+    <button type="button" class="btn btn-primary btn-block" data-action="continue-signup" ${county ? '' : 'disabled'}>下一步：填寫會員資料 →</button>
+    <button type="button" class="btn btn-light btn-block" data-action="cancel-signup">取消</button>
+    <p class="note map-credit">縣市界線：內政部圖資／taiwan-atlas（MIT）。離島以分區方式呈現。</p>
+  </section>`;
+}
+
+function selectSignupCounty(el) {
+  const pending = state.pendingSignup;
+  if (!pending || !TAIWAN_COUNTIES.includes(el.dataset.county)) return;
+  pending.county = el.dataset.county;
+  // 原地更新，避免每次選擇都重畫地圖或造成手機頁面跳動。
+  document.querySelectorAll('[data-action="select-county"]').forEach(node => {
+    const selected = node.dataset.county === pending.county;
+    node.classList.toggle('is-selected', selected);
+    node.setAttribute('aria-pressed', String(selected));
+  });
+  $('.county-selection').textContent = `已選擇：${pending.county}`;
+  $('[data-action="continue-signup"]').disabled = false;
+}
+
+function renderSignup(pending) {
+  const { name, county } = pending;
+  if (!TAIWAN_COUNTIES.includes(county) || !pending.detailsStep) return renderCountyPicker(pending);
   return `
     <div class="panel auth-box">
       <span class="provider-badge provider-line">${LINE_ICON}已透過 LINE 驗證</span>
       <h1 class="page-title">完成會員註冊</h1>
+      <p class="signup-step">步驟 2 / 2 · 填寫資料</p>
+      <div class="signup-county">所在縣市：<strong>${escapeHtml(county)}</strong> <button type="button" class="btn btn-ghost btn-sm" data-action="change-signup-county">重新選擇</button></div>
       <p class="page-sub">最後一步！請填寫以下資料，方便通知中獎與寄送獎品</p>
       <form id="signup-form" class="form">
         <label class="field">姓名
-          <input name="name" required maxlength="20" autocomplete="name" value="${escapeHtml(name)}">
+          <input name="name" required maxlength="20" autocomplete="name" value="${escapeHtml(pending.draft?.name ?? name)}">
         </label>
         <label class="field">電話
           <input name="phone" type="tel" required pattern="09\\d{8}" maxlength="10" placeholder="0912345678"
-            title="請輸入 09 開頭的 10 碼手機號碼" autocomplete="tel">
+            title="請輸入 09 開頭的 10 碼手機號碼" autocomplete="tel" value="${escapeHtml(pending.draft?.phone || '')}">
         </label>
         <label class="field">Email
-          <input name="email" type="email" required maxlength="100" placeholder="name@example.com" autocomplete="email">
+          <input name="email" type="email" required maxlength="100" placeholder="name@example.com" autocomplete="email" value="${escapeHtml(pending.draft?.email || '')}">
         </label>
         <label class="field">蝦皮帳號<small class="optional">選填</small>
           <input name="shopee" maxlength="30" pattern="@?[A-Za-z0-9._]{3,30}" placeholder="例如 lucky_cat88" autocomplete="off"
-            title="只能有英文、數字、底線、句點，3～30 個字">
+            title="只能有英文、數字、底線、句點，3～30 個字" value="${escapeHtml(pending.draft?.shopee || '')}">
           <small class="hint">有在蝦皮購買請填寫，蝦皮的消費才能參加每月排名。填寫後不能自行修改，請確認正確</small>
         </label>
         <p class="form-error" id="signup-error" role="alert" hidden></p>
@@ -1688,6 +1733,7 @@ function renderMember() {
         <div class="member-name">${escapeHtml(member.name)}</div>
         ${member.memberCode ? `<div class="member-code">會員編號 <b>${escapeHtml(member.memberCode)}</b></div>` : ''}
         <div class="small">${maskPhone(member.phone)} · ${escapeHtml(member.email)}</div>
+        ${member.county ? `<div class="small">所在縣市：${escapeHtml(member.county)}</div>` : ''}
         <span class="level">${memberLevel(member.points)}</span>
         <span class="level level-provider">${provider.icon}${provider.name} 登入</span>
       </div>
@@ -1881,6 +1927,21 @@ const ACTIONS = {
   'cancel-member-edit': () => { if (!memberEditSaving) { memberEditing = false; renderMember(); } },
   'sign-in': signIn,
   'cancel-signup': cancelSignup,
+  'select-county': selectSignupCounty,
+  'continue-signup': () => {
+    if (!TAIWAN_COUNTIES.includes(state.pendingSignup?.county)) return;
+    state.pendingSignup.detailsStep = true;
+    renderMember();
+    $('#page-member').scrollIntoView({ block: 'start' });
+  },
+  'change-signup-county': () => {
+    if (!state.pendingSignup) return;
+    const form = $('#signup-form');
+    if (form?.querySelector('[type="submit"]').disabled) return;
+    state.pendingSignup.draft = Object.fromEntries(['name', 'phone', 'email', 'shopee'].map(key => [key, form.elements[key].value]));
+    state.pendingSignup.detailsStep = false;
+    renderMember();
+  },
   'logout': logout,
   'reload-orders': () => { state.memberOrders = null; renderMember(); },
 };
@@ -1898,6 +1959,13 @@ document.addEventListener('click', (e) => {
   if (el) ACTIONS[el.dataset.action]?.(el);
   // 點選單內連到目前頁面的連結時，hashchange 不會觸發，所以這裡也要關
   if (e.target.closest('.drawer a')) closeDrawer();
+});
+
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.county-region')) {
+    e.preventDefault();
+    selectSignupCounty(e.target);
+  }
 });
 
 document.addEventListener('submit', (e) => {

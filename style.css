@@ -1041,3 +1041,20 @@ body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hid
   .line-floating svg { width: 30px; height: 30px; }
   .toast { bottom: calc(106px + env(safe-area-inset-bottom)); }
 }
+/* 新會員兩步註冊；地圖使用本機 SVG 界線，無需手機定位權限。 */
+.signup-step { color: #b36b43; font-weight: 700; margin: 20px 0 8px; letter-spacing: .06em; }
+.county-map-wrap { background: #fbf1e4; border: 1px solid #e8d3bd; border-radius: 24px; margin: 20px 0 14px; overflow: hidden; }
+.county-map { width: 100%; max-height: 450px; display: block; }
+.county-region { fill: #e6c7a4; stroke: #fff9f0; stroke-width: 1.2; cursor: pointer; transition: fill .15s; fill-rule: evenodd; }
+.county-region:hover, .county-region:focus { fill: #cf8c5e; outline: none; stroke: #73472e; stroke-width: 2; }
+.county-region.is-selected { fill: #b65f35; stroke: #73472e; stroke-width: 2; }
+.county-map-label { font-size: 16px; fill: #7f6654; pointer-events: none; }
+.county-selection { font-weight: 700; color: #92502e; padding: 12px; background: #fbf1e4; border-radius: 12px; text-align: center; }
+.county-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 16px 0 24px; }
+.county-option { min-height: 44px; padding: 8px 2px; border: 1px solid #dec9b6; border-radius: 10px; color: #634a3a; background: #fffdfa; font: inherit; font-size: 14px; cursor: pointer; }
+.county-option.is-selected { color: #fff; background: #b65f35; border-color: #b65f35; }
+.county-option:focus-visible { outline: 3px solid #d58b58; outline-offset: 2px; }
+.signup-county { padding: 12px; border-radius: 12px; background: #fbf1e4; margin: 16px 0; }
+.map-credit { font-size: 11px; margin-top: 14px; }
+.county-picker > .btn + .btn { margin-top: 10px; }
+@media (max-width: 380px) { .county-options { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

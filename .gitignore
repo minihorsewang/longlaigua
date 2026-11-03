@@ -11,3 +11,8 @@
 !/line-config.js
 !/liff.html
 !/liff-entry.js
+!/taiwan-counties.js
+!/taiwan-map-LICENSE.txt
+!/taiwan-counties-source.json
+!/build-taiwan-map.cjs
+!/test-registration.cjs
