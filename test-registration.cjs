@@ -36,6 +36,12 @@ for (const box of [{x:360,y:20,width:18,height:25},{x:430,y:570,width:10,height:
   assert.ok(dock.x < x+w/4, '爪子停在左側四分之一內');
   assert.ok(dock.y+30*dock.scale < y+w*100/460, '待機爪子必須完整留在地圖上方滑軌區');
 }
+for (const box of [{width:18,height:25},{width:250,height:100},{width:30,height:260}]) {
+  context.payloadBox = box;
+  const fit = run('countyPayloadFit(payloadBox, .5)');
+  assert.equal(fit.startScale, 2, '拾取時抵銷爪子縮放，圖形與原縣市大小一致');
+  assert.ok(fit.endScale * box.width <= 44.001 && fit.endScale * box.height <= 24.001, '帶回左上時圖形應完整夾在爪子內');
+}
 assert.match(run('renderSignup({name:"測試",county:"臺北市",detailsStep:true,draft:{name:"<script>",phone:"0912345678"}})'), /&lt;script&gt;/);
 assert.match(run('renderSignup({name:"測試",county:"臺北市",detailsStep:true,draft:{phone:"0912345678"}})'), /value="0912345678"/);
 

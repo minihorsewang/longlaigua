@@ -480,3 +480,14 @@ python -m http.server 5173
 - 瀏覽器實測：水平階段 transform x=107.991、y=0；之後橫向固定在 x=148.179，垂直 y=126.981。放大後確認 clawAboveMap=true、clawAtLeft=true，沒有橫向溢出。回全台可正常清除候選縣市。
 - 修改 app.js、style.css、index.html、liff.html、test-registration.cjs、README.md；版本標記 claw3。沒有新增正式程式檔案，後台與會員／訂單資料未修改。
 - 測試方式：重開 LINE 會員入口 → 先確認爪子在左上滑軌 → 點縣市，觀察先右移再下降 → 放大後確認縣市或重播 → 回全台，爪子應回到左上。
+
+### 縣市隨夾爪帶回左上並持續夾住（2026-11-05，claw4）
+
+- 夾取時複製所選縣市的 SVG 界線，附在夾爪升降機構內。縣市圖形與爪子共用提起、水平回左的路徑，不再只在原地上下跳動後放回。
+- 合爪時，縣市從原尺寸逐漸縮成爪子可夾住的大小，跟著提起並帶回左上角。到位後仍維持合爪與圖形可見；地圖放大時也持續保留。
+- 原地留下淡色輪廓；重選／回全台／離開註冊時才清除舊圖形。快速改點會取消前一筆拾取計時器，避免帶回錯的縣市或留下多筆淡色標記。
+- 新增 countyPayloadFit 尺寸測試；原縣市與複製圖形在接合時保持相同大小，收納後限於爪內 44×24 單位，留在滑軌內不遮住台灣。
+- 瀏覽器實測：提起期間 attachedToClaw=true、payloadVisible=1、originalOpacity=0.22；到位及放大後 stillHolding=true、shapeAtLeft=true、shapeAboveMap=true。
+- 放大後由臺中改選彰化，爪子持有與原地標記都只剩彰化；回全台可清除；重新選臺北後確認與進入會員表單正常。預覽未建立會員或訂單。
+- 修改 app.js、style.css、index.html、liff.html、test-registration.cjs、README.md，快取版本 claw4。沒有新增正式程式檔案，後台與正式會員／訂單資料未修改。
+- 手動驗收：點縣市 → 觀看合爪後圖形隨爪子上升並移回左上 → 等地圖放大後，圖形仍應留在爪子裡 → 改選其他縣市則換成新縣市；回全台才清除。

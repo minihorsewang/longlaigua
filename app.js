@@ -1586,6 +1586,7 @@ const TAIWAN_COUNTIES = ['臺北市', '新北市', '基隆市', '桃園市', '�
 let countyMapAnimation = 0;
 let countyMapFrame = 0;
 let countyMapTimer = 0;
+let countyPickupTimer = 0;
 const COUNTY_CLAW_DURATION = 3200; // 先水平移動，再下降、合爪、提起、歸位；主動點選的抓取動作保留播放。
 
 // 各縣市標籤附在地圖內；小縣市也可以直接點文字，不需要下方方格。
@@ -1616,6 +1617,7 @@ function renderCountyPicker(pending) {
       ${COUNTY_MAP_LABELS.map(([name,x,y]) => `<g class="county-map-name${county === name ? ' is-selected' : ''}" data-action="select-county" data-county="${name}" role="button" tabindex="0" aria-label="選擇${name}" aria-pressed="${county === name}" transform="translate(${x} ${y})"><g class="county-map-label-content"><rect x="-29" y="-13" width="58" height="26" rx="12"/><text text-anchor="middle" dominant-baseline="central">${name}</text></g></g>`).join('')}
       <g class="county-claw-track" aria-hidden="true" pointer-events="none"><rect class="county-rail-background" x="0" y="-100" width="460" height="100"/><line class="county-rail-line" x1="25" y1="-88" x2="435" y2="-88"/></g>
       <g class="county-claw" transform="translate(65 -50) scale(1.4)" aria-hidden="true" pointer-events="none"><g class="county-claw-horizontal"><g class="county-claw-carriage">
+        <g class="county-claw-payload"><g class="county-payload-scale"><path class="county-carried-shape" fill-rule="evenodd"/></g></g>
         <path class="claw-cable" d="M0 -700V-30"/><rect class="claw-head" x="-19" y="-35" width="38" height="30" rx="10"/>
         <circle cx="0" cy="-20" r="5" fill="#fff6dc"/>
         <g class="claw-finger claw-finger-left"><path d="M-11 -7L-31 15Q-33 21 -22 30L-11 24"/></g>
@@ -1651,6 +1653,10 @@ function stopCountyMapAnimation() {
   countyMapAnimation++;
   cancelAnimationFrame(countyMapFrame);
   clearTimeout(countyMapTimer);
+  clearTimeout(countyPickupTimer);
+  // 重選、回全台或離開註冊時，清除上次夾取的圖形與原地淡色標記。
+  document.querySelectorAll('.county-region.is-carried').forEach(region => region.classList.remove('is-carried'));
+  document.querySelectorAll('.county-claw.has-payload').forEach(claw => claw.classList.remove('has-payload'));
 }
 
 function animateCountyView(map, target, onFinish = () => {}) {
@@ -1665,7 +1671,7 @@ function animateCountyView(map, target, onFinish = () => {}) {
     const view = target.map((value, i) => from[i] + (value - from[i]) * eased);
     map.setAttribute('viewBox', view.join(' '));
     map.style.setProperty('--map-label-scale', String(view[2] / 460));
-    positionCountyClawTrack(map, view);
+    parkCountyClaw(map); // 縮放時仍固定在左上滑軌，連同夾住的縣市一起保留。
     if (progress < 1) countyMapFrame = requestAnimationFrame(frame);
     else onFinish();
   };
@@ -1702,6 +1708,25 @@ function parkCountyClaw(map) {
   map.querySelector('.county-claw').setAttribute('transform', `translate(${dock.x} ${dock.y}) scale(${dock.scale})`);
 }
 
+function countyPayloadFit(box, scale) {
+  return { startScale: 1 / scale, endScale: Math.min(44 / Math.max(1, box.width), 24 / Math.max(1, box.height)) };
+}
+
+function prepareCountyPayload(claw, region, box, dock, anchor, drop) {
+  const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const fit = countyPayloadFit(box, dock.scale);
+  const payload = claw.querySelector('.county-claw-payload');
+  const shape = payload.querySelector('.county-carried-shape');
+  // 圖形是夾爪的子元素，提起與左移完全共用同一條路徑，不會中途掉回地圖。
+  shape.setAttribute('d', region.getAttribute('d'));
+  shape.setAttribute('transform', `translate(${-center.x} ${-center.y})`);
+  shape.setAttribute('data-county', region.dataset.county);
+  payload.style.setProperty('--payload-start-x', `${(center.x - anchor.x) / dock.scale}px`);
+  payload.style.setProperty('--payload-start-y', `${(center.y - dock.y) / dock.scale - drop}px`);
+  payload.style.setProperty('--payload-start-scale', String(fit.startScale));
+  payload.style.setProperty('--payload-end-scale', String(fit.endScale));
+}
+
 function selectSignupCounty(el) {
   const pending = state.pendingSignup;
   if (!pending || !TAIWAN_COUNTIES.includes(el.dataset.county)) return;
@@ -1713,7 +1738,7 @@ function selectSignupCounty(el) {
     if (!picker.isConnected || state.pendingSignup !== pending) return;
     parkCountyClaw(map);
     machine.dataset.mapStage = 'focused';
-    picker.querySelector('.county-selection').textContent = `這裡是 ${pending.mapCandidate}`;
+    picker.querySelector('.county-selection').textContent = `已夾住 ${pending.mapCandidate}，帶回左上角了`;
     const confirm = picker.querySelector('.county-confirm');
     confirm.hidden = false;
     confirm.querySelector('button').textContent = `確認選擇 ${pending.mapCandidate}`;
@@ -1742,13 +1767,21 @@ function selectSignupCounty(el) {
   };
   claw.setAttribute('transform', `translate(${dock.x} ${dock.y}) scale(${scale})`);
   claw.style.setProperty('--claw-travel', `${(anchor.x - dock.x) / scale}px`);
-  claw.style.setProperty('--claw-drop', `${Math.max(28, (anchor.y - dock.y) / scale - 18)}px`);
+  const drop = Math.max(28, (anchor.y - dock.y) / scale - 18);
+  claw.style.setProperty('--claw-drop', `${drop}px`);
+  prepareCountyPayload(claw, region, box, dock, anchor, drop);
   // 重新觸發 CSS 動畫；快速改點時取消前一個候選，避免舊計時器覆蓋新選擇。
   void claw.getBoundingClientRect();
   claw.classList.add('is-catching');
   machine.dataset.mapStage = 'catching';
   picker.querySelector('.county-selection').textContent = `爪爪移到 ${pending.mapCandidate} 上方，準備抓取…`;
   picker.querySelector('.county-map-tip').textContent = '先向右移動，再往下夾';
+  countyPickupTimer = setTimeout(() => {
+    if (run !== countyMapAnimation || !map.isConnected || state.pendingSignup !== pending) return;
+    region.classList.add('is-carried');
+    claw.classList.add('has-payload');
+    picker.querySelector('.county-selection').textContent = `夾到 ${pending.mapCandidate} 了！帶回左上角…`;
+  }, COUNTY_CLAW_DURATION * .61);
   countyMapTimer = setTimeout(() => {
     if (run !== countyMapAnimation || !map.isConnected || state.pendingSignup !== pending) return;
     claw.classList.remove('is-catching');

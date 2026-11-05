@@ -1069,8 +1069,14 @@ body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hid
 .county-confirm-hint { font-size: 12px; color: #99775e; margin: 0 0 12px; text-align: center; }
 .county-confirm { margin-bottom: 12px; }
 .county-claw { opacity: 1; }
-.county-machine[data-map-stage="zooming"] .county-claw { opacity: 0; }
 .county-claw.is-catching { opacity: 1; }
+.county-region.is-carried { opacity: .22; }
+.county-claw-payload { opacity: 0; transform: translate(0, 18px); }
+.county-claw.has-payload .county-claw-payload { opacity: 1; }
+.county-payload-scale { transform: scale(var(--payload-end-scale, 1)); }
+.county-carried-shape { fill: #d98047; stroke: #75472c; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.county-claw.has-payload .claw-finger-left { transform: rotate(-16deg); }
+.county-claw.has-payload .claw-finger-right { transform: rotate(16deg); }
 .county-replay { display: block; margin: -4px auto 16px; padding: 10px 16px; min-height: 44px; border: 1px solid #d3b392; border-radius: 24px; background: #fff9ed; color: #9b603d; font: inherit; font-size: 13px; cursor: pointer; }
 .county-replay:disabled { opacity: .45; cursor: default; }
 .claw-cable { stroke: #6d503d; stroke-width: 3; }
@@ -1086,10 +1092,18 @@ body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hid
 .is-catching .claw-finger-right { animation: county-claw-close-right var(--claw-duration, 3200ms) both; }
 @keyframes county-claw-travel { 0% { transform: translateX(0); } 22%, 90% { transform: translateX(var(--claw-travel)); } 100% { transform: translateX(0); } }
 @keyframes county-claw-drop { 0%, 24% { transform: translateY(0); } 50%, 63% { transform: translateY(var(--claw-drop)); } 88%, 100% { transform: translateY(0); } }
-@keyframes county-claw-close-left { 0%, 48% { transform: rotate(22deg); } 61%, 90% { transform: rotate(-16deg); } 100% { transform: rotate(22deg); } }
-@keyframes county-claw-close-right { 0%, 48% { transform: rotate(-22deg); } 61%, 90% { transform: rotate(16deg); } 100% { transform: rotate(-22deg); } }
-.county-machine[data-map-stage="catching"] .county-region.is-selected { animation: county-region-lift var(--claw-duration, 3200ms) ease-in-out both; }
-@keyframes county-region-lift { 0%, 63% { transform: translateY(0); } 78% { transform: translateY(-28px); } 88%, 98% { transform: translateY(-60px); } 100% { transform: translateY(0); } }
+@keyframes county-claw-close-left { 0%, 48% { transform: rotate(22deg); } 61%, 100% { transform: rotate(-16deg); } }
+@keyframes county-claw-close-right { 0%, 48% { transform: rotate(-22deg); } 61%, 100% { transform: rotate(16deg); } }
+.county-machine[data-map-stage="catching"] .county-region.is-selected { animation: county-region-picked var(--claw-duration, 3200ms) linear both; }
+.is-catching .county-claw-payload { animation: county-payload-catch var(--claw-duration, 3200ms) linear both; }
+.is-catching .county-payload-scale { animation: county-payload-shrink var(--claw-duration, 3200ms) ease-in-out both; }
+@keyframes county-region-picked { 0%, 60% { opacity: 1; } 61%, 100% { opacity: .22; } }
+@keyframes county-payload-catch {
+  0%, 60% { opacity: 0; transform: translate(var(--payload-start-x), var(--payload-start-y)); }
+  61% { opacity: 1; transform: translate(var(--payload-start-x), var(--payload-start-y)); }
+  76%, 100% { opacity: 1; transform: translate(0, 18px); }
+}
+@keyframes county-payload-shrink { 0%, 61% { transform: scale(var(--payload-start-scale)); } 76%, 100% { transform: scale(var(--payload-end-scale)); } }
 /* 使用者主動點選的夾爪操作保留；減少動態偏好只略過地圖平移與顏色漸變。 */
 @media (prefers-reduced-motion: reduce) { .county-region { transition: none; } }
 .signup-county { padding: 12px; border-radius: 12px; background: #fbf1e4; margin: 16px 0; }
