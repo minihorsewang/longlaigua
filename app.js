@@ -1586,6 +1586,7 @@ const TAIWAN_COUNTIES = ['臺北市', '新北市', '基隆市', '桃園市', '�
 let countyMapAnimation = 0;
 let countyMapFrame = 0;
 let countyMapTimer = 0;
+const COUNTY_CLAW_DURATION = 2200; // 完整下降、合爪、提起；即使瀏覽器偏好減少動態，也保留使用者主動點選的抓取動作。
 
 // 各縣市標籤附在地圖內；小縣市也可以直接點文字，不需要下方方格。
 const COUNTY_MAP_LABELS = [
@@ -1606,14 +1607,14 @@ function renderCountyPicker(pending) {
     <p class="signup-step">步驟 1 / 2 · 選擇縣市</p>
     <h1 class="page-title">夾起你的好運城市</h1>
     <p class="page-sub">點一下你的所在地，讓好運爪爪帶你靠近</p>
-    <div class="county-machine" data-map-stage="overview">
+    <div class="county-machine" data-map-stage="overview" style="--claw-duration:${COUNTY_CLAW_DURATION}ms">
       <div class="county-machine-top"><span class="machine-lights" aria-hidden="true">● ● ●</span><span>LUCKY CITY CATCHER</span><span aria-hidden="true">✦</span></div>
       <div class="county-map-wrap"><svg class="county-map" viewBox="0 0 460 620" aria-label="台灣縣市選擇地圖，點選後會放大，請再確認縣市">
       <defs><pattern id="county-ocean-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#ddc9b3" stroke-width=".5" opacity=".35"/></pattern></defs>
       <rect x="-1000" y="-1000" width="3000" height="3000" fill="url(#county-ocean-grid)" pointer-events="none"/>
       ${paths.map(p => `<path d="${p.d}" class="county-region${county === p.name ? ' is-selected' : ''}" data-action="select-county" data-county="${escapeHtml(p.name)}" role="button" tabindex="0" aria-label="${escapeHtml(p.name)}" aria-pressed="${county === p.name}"><title>${escapeHtml(p.name)}</title></path>`).join('')}
       ${COUNTY_MAP_LABELS.map(([name,x,y]) => `<g class="county-map-name${county === name ? ' is-selected' : ''}" data-action="select-county" data-county="${name}" role="button" tabindex="0" aria-label="選擇${name}" aria-pressed="${county === name}" transform="translate(${x} ${y})"><g class="county-map-label-content"><rect x="-29" y="-13" width="58" height="26" rx="12"/><text text-anchor="middle" dominant-baseline="central">${name}</text></g></g>`).join('')}
-      <g class="county-claw" aria-hidden="true" pointer-events="none"><g class="county-claw-carriage">
+      <g class="county-claw" transform="translate(230 70) scale(1.4)" aria-hidden="true" pointer-events="none"><g class="county-claw-carriage">
         <path class="claw-cable" d="M0 -700V-30"/><rect class="claw-head" x="-19" y="-35" width="38" height="30" rx="10"/>
         <circle cx="0" cy="-20" r="5" fill="#fff6dc"/>
         <g class="claw-finger claw-finger-left"><path d="M-11 -7L-31 15Q-33 21 -22 30L-11 24"/></g>
@@ -1627,6 +1628,7 @@ function renderCountyPicker(pending) {
       <div class="county-machine-bottom"><span aria-hidden="true">✦</span> 把好運，夾回你的城市 <span aria-hidden="true">✦</span></div>
     </div>
     <div class="county-selection" role="status" aria-live="polite">${county ? `已選擇：${escapeHtml(county)}` : '先點地圖上的縣市，爪爪就會出發'}</div>
+    <button type="button" class="county-replay" data-action="replay-county-claw" ${county ? '' : 'disabled'}>↻ 再看一次抓取動畫</button>
     <div class="county-confirm" hidden><p class="county-confirm-hint">已放大這一區，可再點選周邊縣市</p><button type="button" class="btn btn-primary btn-block" data-action="confirm-signup-county">確認這個縣市</button></div>
     <button type="button" class="btn btn-primary btn-block" data-action="continue-signup" ${county ? '' : 'disabled'}>下一步：填寫會員資料 →</button>
     <button type="button" class="btn btn-light btn-block" data-action="cancel-signup">取消</button>
@@ -1674,6 +1676,12 @@ function highlightSignupCounty(picker, county) {
   });
 }
 
+function parkCountyClaw(map) {
+  const [x, y, width] = map.getAttribute('viewBox').split(/\s+/).map(Number);
+  const scale = width / 460 * 1.4;
+  map.querySelector('.county-claw').setAttribute('transform', `translate(${x + width / 2} ${y + 70 * scale}) scale(${scale})`);
+}
+
 function selectSignupCounty(el) {
   const pending = state.pendingSignup;
   if (!pending || !TAIWAN_COUNTIES.includes(el.dataset.county)) return;
@@ -1683,6 +1691,7 @@ function selectSignupCounty(el) {
   const region = [...map.querySelectorAll('.county-region')].find(node => node.dataset.county === el.dataset.county);
   const showCandidate = () => {
     if (!picker.isConnected || state.pendingSignup !== pending) return;
+    parkCountyClaw(map);
     machine.dataset.mapStage = 'focused';
     picker.querySelector('.county-selection').textContent = `這裡是 ${pending.mapCandidate}`;
     const confirm = picker.querySelector('.county-confirm');
@@ -1690,7 +1699,6 @@ function selectSignupCounty(el) {
     confirm.querySelector('button').textContent = `確認選擇 ${pending.mapCandidate}`;
     picker.querySelector('.county-map-tip').textContent = '再點縣市可微調 · 確認後繼續';
   };
-  const focused = machine.dataset.mapStage === 'focused';
   stopCountyMapAnimation();
   const run = countyMapAnimation;
   pending.mapCandidate = el.dataset.county;
@@ -1698,20 +1706,24 @@ function selectSignupCounty(el) {
   highlightSignupCounty(picker, pending.mapCandidate);
   picker.querySelector('[data-action="continue-signup"]').disabled = true;
   picker.querySelector('.county-confirm').hidden = true;
+  picker.querySelector('[data-action="replay-county-claw"]').disabled = false;
   const claw = picker.querySelector('.county-claw');
   claw.classList.remove('is-catching');
-  if (focused) { showCandidate(); return; }
   const box = region.getBBox();
-  const anchor = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  claw.setAttribute('transform', `translate(${anchor.x} 0)`);
-  claw.style.setProperty('--claw-drop', `${Math.max(28, anchor.y - 18)}px`);
+  const [viewX, viewY, viewWidth, viewHeight] = map.getAttribute('viewBox').split(/\s+/).map(Number);
+  const scale = viewWidth / 460 * 1.4;
+  const anchor = {
+    x: Math.max(viewX + 30 * scale, Math.min(viewX + viewWidth - 30 * scale, box.x + box.width / 2)),
+    y: Math.max(viewY + 50 * scale, Math.min(viewY + viewHeight - 40 * scale, box.y + box.height / 2)),
+  };
+  claw.setAttribute('transform', `translate(${anchor.x} ${viewY}) scale(${scale})`);
+  claw.style.setProperty('--claw-drop', `${Math.max(28, (anchor.y - viewY) / scale - 18)}px`);
   // 重新觸發 CSS 動畫；快速改點時取消前一個候選，避免舊計時器覆蓋新選擇。
   void claw.getBoundingClientRect();
   claw.classList.add('is-catching');
   machine.dataset.mapStage = 'catching';
   picker.querySelector('.county-selection').textContent = `好運爪爪正在抓取 ${pending.mapCandidate}…`;
   picker.querySelector('.county-map-tip').textContent = '抓到了！準備靠近看看';
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   countyMapTimer = setTimeout(() => {
     if (run !== countyMapAnimation || !map.isConnected || state.pendingSignup !== pending) return;
     claw.classList.remove('is-catching');
@@ -1719,7 +1731,16 @@ function selectSignupCounty(el) {
     animateCountyView(map, countyZoomBox(box), () => {
       if (run === countyMapAnimation) showCandidate();
     });
-  }, reducedMotion ? 0 : 1100);
+  }, COUNTY_CLAW_DURATION);
+}
+
+function replaySignupCountyClaw() {
+  const county = state.pendingSignup?.mapCandidate || state.pendingSignup?.county;
+  const region = [...document.querySelectorAll('.county-region')].find(node => node.dataset.county === county);
+  if (region) {
+    region.closest('.county-machine').scrollIntoView({ block: 'center', behavior: 'auto' });
+    selectSignupCounty(region);
+  }
 }
 
 function confirmSignupCounty() {
@@ -1729,6 +1750,7 @@ function confirmSignupCounty() {
   pending.county = pending.mapCandidate;
   picker.querySelector('.county-selection').textContent = `已選擇：${pending.county}`;
   picker.querySelector('.county-confirm').hidden = true;
+  picker.querySelector('[data-action="replay-county-claw"]').disabled = false;
   const next = picker.querySelector('[data-action="continue-signup"]');
   next.disabled = false;
   next.focus({ preventScroll: true });
@@ -1742,13 +1764,15 @@ function resetSignupCountyMap() {
   machine.dataset.mapStage = 'overview';
   picker.querySelector('.county-claw').classList.remove('is-catching');
   picker.querySelector('.county-confirm').hidden = true;
+  picker.querySelector('[data-action="replay-county-claw"]').disabled = true;
   state.pendingSignup.mapCandidate = '';
   state.pendingSignup.county = '';
   highlightSignupCounty(picker, '');
   picker.querySelector('[data-action="continue-signup"]').disabled = true;
   picker.querySelector('.county-selection').textContent = '重新點選你的所在縣市';
   picker.querySelector('.county-map-tip').textContent = '點選縣市 · 爪爪幫你放大';
-  animateCountyView(picker.querySelector('.county-map'), [0, 0, 460, 620]);
+  const map = picker.querySelector('.county-map');
+  animateCountyView(map, [0, 0, 460, 620], () => parkCountyClaw(map));
 }
 
 function zoomSignupCountyMap(factor) {
@@ -1756,7 +1780,7 @@ function zoomSignupCountyMap(factor) {
   if (!picker || ['catching', 'zooming'].includes(picker.querySelector('.county-machine').dataset.mapStage)) return;
   const map = picker.querySelector('.county-map');
   const [x, y, width, height] = map.getAttribute('viewBox').split(/\s+/).map(Number);
-  animateCountyView(map, countyZoomBox({ x: x + width / 2, y: y + height / 2, width: 0, height: 0 }, Math.max(65, Math.min(460, width * factor))));
+  animateCountyView(map, countyZoomBox({ x: x + width / 2, y: y + height / 2, width: 0, height: 0 }, Math.max(65, Math.min(460, width * factor))), () => parkCountyClaw(map));
 }
 
 function renderSignup(pending) {
@@ -2070,6 +2094,7 @@ const ACTIONS = {
   'sign-in': signIn,
   'cancel-signup': cancelSignup,
   'select-county': selectSignupCounty,
+  'replay-county-claw': replaySignupCountyClaw,
   'confirm-signup-county': confirmSignupCounty,
   'county-map-reset': resetSignupCountyMap,
   'county-map-zoom-in': () => zoomSignupCountyMap(.7),
