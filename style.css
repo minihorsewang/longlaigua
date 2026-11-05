@@ -1047,7 +1047,7 @@ body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hid
 .county-machine-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #b96842; color: #fff4df; padding: 13px 15px; font: 700 10px/1.4 sans-serif; letter-spacing: .14em; }
 .machine-lights { color: #ffda89; font-size: 10px; white-space: nowrap; }
 .county-map-wrap { position: relative; background: radial-gradient(ellipse at 60% 45%, #fffdf5, #f4e7d4); overflow: hidden; }
-.county-map { width: 100%; height: auto; max-height: 490px; display: block; overflow: hidden; }
+.county-map { width: 100%; height: auto; max-height: 560px; display: block; overflow: hidden; }
 .county-region { fill: #e8cda4; stroke: #fffaf0; stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: pointer; transition: fill .2s; fill-rule: evenodd; }
 .county-region:hover, .county-region:focus { fill: #d39666; outline: none; stroke: #995733; stroke-width: 2; }
 .county-region.is-selected { fill: #c87747; stroke: #8b492a; stroke-width: 2; }
@@ -1074,18 +1074,22 @@ body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hid
 .county-replay { display: block; margin: -4px auto 16px; padding: 10px 16px; min-height: 44px; border: 1px solid #d3b392; border-radius: 24px; background: #fff9ed; color: #9b603d; font: inherit; font-size: 13px; cursor: pointer; }
 .county-replay:disabled { opacity: .45; cursor: default; }
 .claw-cable { stroke: #6d503d; stroke-width: 3; }
+.county-rail-background { fill: #f3e2c9; }
+.county-rail-line { stroke: #b69168; stroke-width: 4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .claw-head { fill: #d39854; stroke: #704d32; stroke-width: 2; }
 .claw-finger path, .claw-middle { fill: none; stroke: #8d7561; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
 .claw-finger-left { transform-origin: -11px -7px; }
 .claw-finger-right { transform-origin: 11px -7px; }
-.is-catching .county-claw-carriage { animation: county-claw-drop var(--claw-duration, 2200ms) cubic-bezier(.4,0,.2,1) both; }
-.is-catching .claw-finger-left { animation: county-claw-close-left var(--claw-duration, 2200ms) both; }
-.is-catching .claw-finger-right { animation: county-claw-close-right var(--claw-duration, 2200ms) both; }
-@keyframes county-claw-drop { 0% { transform: translateY(-90px); } 45%, 72% { transform: translateY(var(--claw-drop)); } 100% { transform: translateY(-90px); } }
-@keyframes county-claw-close-left { 0%, 42% { transform: rotate(22deg); } 63%, 100% { transform: rotate(-16deg); } }
-@keyframes county-claw-close-right { 0%, 42% { transform: rotate(-22deg); } 63%, 100% { transform: rotate(16deg); } }
-.county-machine[data-map-stage="catching"] .county-region.is-selected { animation: county-region-lift var(--claw-duration, 2200ms) ease-in-out both; }
-@keyframes county-region-lift { 0%, 65% { transform: translateY(0); } 82% { transform: translateY(-28px); } 100% { transform: translateY(-60px); } }
+.is-catching .county-claw-horizontal { animation: county-claw-travel var(--claw-duration, 3200ms) ease-in-out both; }
+.is-catching .county-claw-carriage { animation: county-claw-drop var(--claw-duration, 3200ms) cubic-bezier(.4,0,.2,1) both; }
+.is-catching .claw-finger-left { animation: county-claw-close-left var(--claw-duration, 3200ms) both; }
+.is-catching .claw-finger-right { animation: county-claw-close-right var(--claw-duration, 3200ms) both; }
+@keyframes county-claw-travel { 0% { transform: translateX(0); } 22%, 90% { transform: translateX(var(--claw-travel)); } 100% { transform: translateX(0); } }
+@keyframes county-claw-drop { 0%, 24% { transform: translateY(0); } 50%, 63% { transform: translateY(var(--claw-drop)); } 88%, 100% { transform: translateY(0); } }
+@keyframes county-claw-close-left { 0%, 48% { transform: rotate(22deg); } 61%, 90% { transform: rotate(-16deg); } 100% { transform: rotate(22deg); } }
+@keyframes county-claw-close-right { 0%, 48% { transform: rotate(-22deg); } 61%, 90% { transform: rotate(16deg); } 100% { transform: rotate(-22deg); } }
+.county-machine[data-map-stage="catching"] .county-region.is-selected { animation: county-region-lift var(--claw-duration, 3200ms) ease-in-out both; }
+@keyframes county-region-lift { 0%, 63% { transform: translateY(0); } 78% { transform: translateY(-28px); } 88%, 98% { transform: translateY(-60px); } 100% { transform: translateY(0); } }
 /* 使用者主動點選的夾爪操作保留；減少動態偏好只略過地圖平移與顏色漸變。 */
 @media (prefers-reduced-motion: reduce) { .county-region { transition: none; } }
 .signup-county { padding: 12px; border-radius: 12px; background: #fbf1e4; margin: 16px 0; }

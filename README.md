@@ -470,3 +470,13 @@ python -m http.server 5173
 - 同樣在減少動態為 true 的瀏覽器測到爪子 display:inline、animation:county-claw-drop、duration:2.2s、stage:catching；截圖確認爪子確實向下抓取。放大後改選彰化也再次進入 catching。
 - 本次修改 app.js、style.css、index.html、liff.html、test-registration.cjs、README.md；快取版本 claw2。沒有新增正式程式檔案，會員、訂單、Apps Script 與 LINE 權限均未修改。
 - 手動驗收：關閉舊頁並重開 LINE 會員入口 → 點任一縣市 → 應看見下降、合爪、提起後才放大；放大後改選縣市或按重播也應看見相同動作。
+
+### 夾爪左上待機、先右移再下降（2026-11-05，claw3）
+
+- 台灣地圖上方新增獨立滑軌區。爪子停靠左上角，爪子與滑軌不覆蓋台灣本島或離島；放大後滑軌仍固定在視窗頂端。
+- 動作順序：左上待機 → 水平向右移到目標縣市上方 → 垂直下降 → 合爪 → 提起 → 水平回左側 → 地圖放大。整段 3200ms，橫移與下降使用分層 SVG 動畫，避免斜向滑落。
+- 將滑軌空間納入縮放計算；回全台、手動縮放與重播後都重新定位爪子，讓待機爪子完整留在地圖上方。
+- 新增本機測試：縮放後的地圖內容邊界、爪子位於左側四分之一內、爪子底部不超出滑軌。原本會員註冊／縣市驗證測試仍通過。
+- 瀏覽器實測：水平階段 transform x=107.991、y=0；之後橫向固定在 x=148.179，垂直 y=126.981。放大後確認 clawAboveMap=true、clawAtLeft=true，沒有橫向溢出。回全台可正常清除候選縣市。
+- 修改 app.js、style.css、index.html、liff.html、test-registration.cjs、README.md；版本標記 claw3。沒有新增正式程式檔案，後台與會員／訂單資料未修改。
+- 測試方式：重開 LINE 會員入口 → 先確認爪子在左上滑軌 → 點縣市，觀察先右移再下降 → 放大後確認縣市或重播 → 回全台，爪子應回到左上。

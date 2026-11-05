@@ -1586,7 +1586,7 @@ const TAIWAN_COUNTIES = ['臺北市', '新北市', '基隆市', '桃園市', '�
 let countyMapAnimation = 0;
 let countyMapFrame = 0;
 let countyMapTimer = 0;
-const COUNTY_CLAW_DURATION = 2200; // 完整下降、合爪、提起；即使瀏覽器偏好減少動態，也保留使用者主動點選的抓取動作。
+const COUNTY_CLAW_DURATION = 3200; // 先水平移動，再下降、合爪、提起、歸位；主動點選的抓取動作保留播放。
 
 // 各縣市標籤附在地圖內；小縣市也可以直接點文字，不需要下方方格。
 const COUNTY_MAP_LABELS = [
@@ -1609,18 +1609,19 @@ function renderCountyPicker(pending) {
     <p class="page-sub">點一下你的所在地，讓好運爪爪帶你靠近</p>
     <div class="county-machine" data-map-stage="overview" style="--claw-duration:${COUNTY_CLAW_DURATION}ms">
       <div class="county-machine-top"><span class="machine-lights" aria-hidden="true">● ● ●</span><span>LUCKY CITY CATCHER</span><span aria-hidden="true">✦</span></div>
-      <div class="county-map-wrap"><svg class="county-map" viewBox="0 0 460 620" aria-label="台灣縣市選擇地圖，點選後會放大，請再確認縣市">
+      <div class="county-map-wrap"><svg class="county-map" viewBox="0 -100 460 720" aria-label="台灣縣市選擇地圖，點選後會放大，請再確認縣市">
       <defs><pattern id="county-ocean-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#ddc9b3" stroke-width=".5" opacity=".35"/></pattern></defs>
       <rect x="-1000" y="-1000" width="3000" height="3000" fill="url(#county-ocean-grid)" pointer-events="none"/>
       ${paths.map(p => `<path d="${p.d}" class="county-region${county === p.name ? ' is-selected' : ''}" data-action="select-county" data-county="${escapeHtml(p.name)}" role="button" tabindex="0" aria-label="${escapeHtml(p.name)}" aria-pressed="${county === p.name}"><title>${escapeHtml(p.name)}</title></path>`).join('')}
       ${COUNTY_MAP_LABELS.map(([name,x,y]) => `<g class="county-map-name${county === name ? ' is-selected' : ''}" data-action="select-county" data-county="${name}" role="button" tabindex="0" aria-label="選擇${name}" aria-pressed="${county === name}" transform="translate(${x} ${y})"><g class="county-map-label-content"><rect x="-29" y="-13" width="58" height="26" rx="12"/><text text-anchor="middle" dominant-baseline="central">${name}</text></g></g>`).join('')}
-      <g class="county-claw" transform="translate(230 70) scale(1.4)" aria-hidden="true" pointer-events="none"><g class="county-claw-carriage">
+      <g class="county-claw-track" aria-hidden="true" pointer-events="none"><rect class="county-rail-background" x="0" y="-100" width="460" height="100"/><line class="county-rail-line" x1="25" y1="-88" x2="435" y2="-88"/></g>
+      <g class="county-claw" transform="translate(65 -50) scale(1.4)" aria-hidden="true" pointer-events="none"><g class="county-claw-horizontal"><g class="county-claw-carriage">
         <path class="claw-cable" d="M0 -700V-30"/><rect class="claw-head" x="-19" y="-35" width="38" height="30" rx="10"/>
         <circle cx="0" cy="-20" r="5" fill="#fff6dc"/>
         <g class="claw-finger claw-finger-left"><path d="M-11 -7L-31 15Q-33 21 -22 30L-11 24"/></g>
         <g class="claw-finger claw-finger-right"><path d="M11 -7L31 15Q33 21 22 30L11 24"/></g>
         <path class="claw-middle" d="M0 -4V20L-6 27"/>
-      </g></g>
+      </g></g></g>
     </svg>
       <div class="county-map-tools"><button type="button" data-action="county-map-reset" aria-label="回到全台地圖">↺ 全台</button><button type="button" data-action="county-map-zoom-in" aria-label="放大地圖">＋</button><button type="button" data-action="county-map-zoom-out" aria-label="縮小地圖">−</button></div>
       <span class="county-map-tip">點選縣市 · 爪爪幫你放大</span>
@@ -1639,9 +1640,11 @@ function renderCountyPicker(pending) {
 function countyZoomBox(box, minimumWidth = 160) {
   // 留下鄰近縣市，讓第一次點到的區域能在放大後精準重選。
   const width = Math.min(460, Math.max(minimumWidth, box.width * 1.5, box.height * 1.5 * 460 / 620));
-  const height = width * 620 / 460;
+  const contentHeight = width * 620 / 460;
+  const railHeight = width * 100 / 460;
   return [Math.max(0, Math.min(460 - width, box.x + box.width / 2 - width / 2)),
-    Math.max(0, Math.min(620 - height, box.y + box.height / 2 - height / 2)), width, height];
+    Math.max(0, Math.min(620 - contentHeight, box.y + box.height / 2 - contentHeight / 2)) - railHeight,
+    width, contentHeight + railHeight];
 }
 
 function stopCountyMapAnimation() {
@@ -1662,6 +1665,7 @@ function animateCountyView(map, target, onFinish = () => {}) {
     const view = target.map((value, i) => from[i] + (value - from[i]) * eased);
     map.setAttribute('viewBox', view.join(' '));
     map.style.setProperty('--map-label-scale', String(view[2] / 460));
+    positionCountyClawTrack(map, view);
     if (progress < 1) countyMapFrame = requestAnimationFrame(frame);
     else onFinish();
   };
@@ -1676,10 +1680,26 @@ function highlightSignupCounty(picker, county) {
   });
 }
 
+function positionCountyClawTrack(map, view) {
+  const [x, y, width] = view;
+  const scale = width / 460;
+  const background = map.querySelector('.county-rail-background');
+  for (const [attribute, value] of Object.entries({ x, y, width, height: 100 * scale })) background.setAttribute(attribute, value);
+  const line = map.querySelector('.county-rail-line');
+  for (const [attribute, value] of Object.entries({ x1: x + 25 * scale, x2: x + width - 25 * scale, y1: y + 12 * scale, y2: y + 12 * scale })) line.setAttribute(attribute, value);
+}
+
+function countyClawDock(view) {
+  const [x, y, width] = view;
+  const mapScale = width / 460;
+  return { x: x + 65 * mapScale, y: y + 50 * mapScale, scale: mapScale * 1.4 };
+}
+
 function parkCountyClaw(map) {
-  const [x, y, width] = map.getAttribute('viewBox').split(/\s+/).map(Number);
-  const scale = width / 460 * 1.4;
-  map.querySelector('.county-claw').setAttribute('transform', `translate(${x + width / 2} ${y + 70 * scale}) scale(${scale})`);
+  const view = map.getAttribute('viewBox').split(/\s+/).map(Number);
+  const dock = countyClawDock(view);
+  positionCountyClawTrack(map, view);
+  map.querySelector('.county-claw').setAttribute('transform', `translate(${dock.x} ${dock.y}) scale(${dock.scale})`);
 }
 
 function selectSignupCounty(el) {
@@ -1709,21 +1729,26 @@ function selectSignupCounty(el) {
   picker.querySelector('[data-action="replay-county-claw"]').disabled = false;
   const claw = picker.querySelector('.county-claw');
   claw.classList.remove('is-catching');
+  machine.dataset.mapStage = 'preparing';
   const box = region.getBBox();
-  const [viewX, viewY, viewWidth, viewHeight] = map.getAttribute('viewBox').split(/\s+/).map(Number);
-  const scale = viewWidth / 460 * 1.4;
+  const view = map.getAttribute('viewBox').split(/\s+/).map(Number);
+  const [viewX, viewY, viewWidth, viewHeight] = view;
+  const dock = countyClawDock(view);
+  const { scale } = dock;
+  const contentTop = viewY + viewWidth * 100 / 460;
   const anchor = {
-    x: Math.max(viewX + 30 * scale, Math.min(viewX + viewWidth - 30 * scale, box.x + box.width / 2)),
-    y: Math.max(viewY + 50 * scale, Math.min(viewY + viewHeight - 40 * scale, box.y + box.height / 2)),
+    x: Math.max(dock.x, Math.min(viewX + viewWidth - 30 * scale, box.x + box.width / 2)),
+    y: Math.max(contentTop + 20 * scale, Math.min(viewY + viewHeight - 40 * scale, box.y + box.height / 2)),
   };
-  claw.setAttribute('transform', `translate(${anchor.x} ${viewY}) scale(${scale})`);
-  claw.style.setProperty('--claw-drop', `${Math.max(28, (anchor.y - viewY) / scale - 18)}px`);
+  claw.setAttribute('transform', `translate(${dock.x} ${dock.y}) scale(${scale})`);
+  claw.style.setProperty('--claw-travel', `${(anchor.x - dock.x) / scale}px`);
+  claw.style.setProperty('--claw-drop', `${Math.max(28, (anchor.y - dock.y) / scale - 18)}px`);
   // 重新觸發 CSS 動畫；快速改點時取消前一個候選，避免舊計時器覆蓋新選擇。
   void claw.getBoundingClientRect();
   claw.classList.add('is-catching');
   machine.dataset.mapStage = 'catching';
-  picker.querySelector('.county-selection').textContent = `好運爪爪正在抓取 ${pending.mapCandidate}…`;
-  picker.querySelector('.county-map-tip').textContent = '抓到了！準備靠近看看';
+  picker.querySelector('.county-selection').textContent = `爪爪移到 ${pending.mapCandidate} 上方，準備抓取…`;
+  picker.querySelector('.county-map-tip').textContent = '先向右移動，再往下夾';
   countyMapTimer = setTimeout(() => {
     if (run !== countyMapAnimation || !map.isConnected || state.pendingSignup !== pending) return;
     claw.classList.remove('is-catching');
@@ -1772,7 +1797,7 @@ function resetSignupCountyMap() {
   picker.querySelector('.county-selection').textContent = '重新點選你的所在縣市';
   picker.querySelector('.county-map-tip').textContent = '點選縣市 · 爪爪幫你放大';
   const map = picker.querySelector('.county-map');
-  animateCountyView(map, [0, 0, 460, 620], () => parkCountyClaw(map));
+  animateCountyView(map, [0, -100, 460, 720], () => parkCountyClaw(map));
 }
 
 function zoomSignupCountyMap(factor) {
@@ -1780,7 +1805,7 @@ function zoomSignupCountyMap(factor) {
   if (!picker || ['catching', 'zooming'].includes(picker.querySelector('.county-machine').dataset.mapStage)) return;
   const map = picker.querySelector('.county-map');
   const [x, y, width, height] = map.getAttribute('viewBox').split(/\s+/).map(Number);
-  animateCountyView(map, countyZoomBox({ x: x + width / 2, y: y + height / 2, width: 0, height: 0 }, Math.max(65, Math.min(460, width * factor))), () => parkCountyClaw(map));
+  animateCountyView(map, countyZoomBox({ x: x + width / 2, y: y + (height + width * 100 / 460) / 2, width: 0, height: 0 }, Math.max(65, Math.min(460, width * factor))), () => parkCountyClaw(map));
 }
 
 function renderSignup(pending) {

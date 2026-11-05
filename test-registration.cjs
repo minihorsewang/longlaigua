@@ -29,8 +29,12 @@ for (const rule of reducedMotionRules.filter(rule => /county-claw|claw-finger/.t
 for (const box of [{x:360,y:20,width:18,height:25},{x:430,y:570,width:10,height:20},{x:20,y:40,width:100,height:80}]) {
   context.box = box;
   const [x,y,w,h] = run('countyZoomBox(box)');
-  assert.ok(x >= 0 && y >= 0 && x+w <= 460.001 && y+h <= 620.001);
+  assert.ok(x >= 0 && y+w*100/460 >= -.001 && x+w <= 460.001 && y+h <= 620.001);
   assert.ok(w < 460 && w >= 160);
+  context.view = [x,y,w,h];
+  const dock = run('countyClawDock(view)');
+  assert.ok(dock.x < x+w/4, '爪子停在左側四分之一內');
+  assert.ok(dock.y+30*dock.scale < y+w*100/460, '待機爪子必須完整留在地圖上方滑軌區');
 }
 assert.match(run('renderSignup({name:"測試",county:"臺北市",detailsStep:true,draft:{name:"<script>",phone:"0912345678"}})'), /&lt;script&gt;/);
 assert.match(run('renderSignup({name:"測試",county:"臺北市",detailsStep:true,draft:{phone:"0912345678"}})'), /value="0912345678"/);
