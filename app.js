@@ -1547,6 +1547,7 @@ async function signUp(form) {
 }
 
 function cancelSignup() {
+  stopCountyMapAnimation();
   state.pendingSignup = null;
   renderMember();
 }
@@ -1582,6 +1583,20 @@ function renderLogin() {
 }
 
 const TAIWAN_COUNTIES = ['臺北市', '新北市', '基隆市', '桃園市', '新竹市', '新竹縣', '苗栗縣', '臺中市', '彰化縣', '南投縣', '雲林縣', '嘉義市', '嘉義縣', '臺南市', '高雄市', '屏東縣', '宜蘭縣', '花蓮縣', '臺東縣', '澎湖縣', '金門縣', '連江縣'];
+let countyMapAnimation = 0;
+let countyMapFrame = 0;
+let countyMapTimer = 0;
+
+// 各縣市標籤附在地圖內；小縣市也可以直接點文字，不需要下方方格。
+const COUNTY_MAP_LABELS = [
+  ['臺北市', 357, 16], ['新北市', 391, 72], ['基隆市', 423, 35],
+  ['桃園市', 316, 72], ['新竹縣', 314, 116], ['新竹市', 251, 88],
+  ['苗栗縣', 266, 146], ['臺中市', 271, 195], ['彰化縣', 183, 231],
+  ['南投縣', 281, 266], ['雲林縣', 174, 283], ['嘉義縣', 239, 333],
+  ['嘉義市', 176, 321], ['臺南市', 174, 377], ['高雄市', 220, 414],
+  ['屏東縣', 228, 518], ['宜蘭縣', 389, 128], ['花蓮縣', 346, 276],
+  ['臺東縣', 300, 447], ['連江縣', 68, 146], ['金門縣', 83, 225], ['澎湖縣', 61, 573],
+];
 
 function renderCountyPicker(pending) {
   const county = TAIWAN_COUNTIES.includes(pending.county) ? pending.county : '';
@@ -1589,32 +1604,159 @@ function renderCountyPicker(pending) {
   return `<section class="panel auth-box county-picker">
     <span class="provider-badge provider-line">${LINE_ICON}已透過 LINE 驗證</span>
     <p class="signup-step">步驟 1 / 2 · 選擇縣市</p>
-    <h1 class="page-title">你從哪裡來？</h1>
-    <p class="page-sub">點選地圖或下方縣市，與龍來刮相遇</p>
-    <div class="county-map-wrap"><svg class="county-map" viewBox="0 0 460 620" aria-label="台灣縣市選擇地圖">
+    <h1 class="page-title">夾起你的好運城市</h1>
+    <p class="page-sub">點一下你的所在地，讓好運爪爪帶你靠近</p>
+    <div class="county-machine" data-map-stage="overview">
+      <div class="county-machine-top"><span class="machine-lights" aria-hidden="true">● ● ●</span><span>LUCKY CITY CATCHER</span><span aria-hidden="true">✦</span></div>
+      <div class="county-map-wrap"><svg class="county-map" viewBox="0 0 460 620" aria-label="台灣縣市選擇地圖，點選後會放大，請再確認縣市">
+      <defs><pattern id="county-ocean-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#ddc9b3" stroke-width=".5" opacity=".35"/></pattern></defs>
+      <rect x="-1000" y="-1000" width="3000" height="3000" fill="url(#county-ocean-grid)" pointer-events="none"/>
       ${paths.map(p => `<path d="${p.d}" class="county-region${county === p.name ? ' is-selected' : ''}" data-action="select-county" data-county="${escapeHtml(p.name)}" role="button" tabindex="0" aria-label="${escapeHtml(p.name)}" aria-pressed="${county === p.name}"><title>${escapeHtml(p.name)}</title></path>`).join('')}
-      <text x="50" y="145" class="county-map-label">連江</text><text x="50" y="230" class="county-map-label">金門</text><text x="50" y="575" class="county-map-label">澎湖</text>
-    </svg></div>
-    <div class="county-selection" role="status">${county ? `已選擇：${escapeHtml(county)}` : '請選擇你的所在縣市'}</div>
-    <div class="county-options" aria-label="縣市清單">${TAIWAN_COUNTIES.map(name => `<button type="button" class="county-option${county === name ? ' is-selected' : ''}" data-action="select-county" data-county="${name}" aria-pressed="${county === name}">${name}</button>`).join('')}</div>
+      ${COUNTY_MAP_LABELS.map(([name,x,y]) => `<g class="county-map-name${county === name ? ' is-selected' : ''}" data-action="select-county" data-county="${name}" role="button" tabindex="0" aria-label="選擇${name}" aria-pressed="${county === name}" transform="translate(${x} ${y})"><g class="county-map-label-content"><rect x="-29" y="-13" width="58" height="26" rx="12"/><text text-anchor="middle" dominant-baseline="central">${name}</text></g></g>`).join('')}
+      <g class="county-claw" aria-hidden="true" pointer-events="none"><g class="county-claw-carriage">
+        <path class="claw-cable" d="M0 -700V-30"/><rect class="claw-head" x="-19" y="-35" width="38" height="30" rx="10"/>
+        <circle cx="0" cy="-20" r="5" fill="#fff6dc"/>
+        <g class="claw-finger claw-finger-left"><path d="M-11 -7L-31 15Q-33 21 -22 30L-11 24"/></g>
+        <g class="claw-finger claw-finger-right"><path d="M11 -7L31 15Q33 21 22 30L11 24"/></g>
+        <path class="claw-middle" d="M0 -4V20L-6 27"/>
+      </g></g>
+    </svg>
+      <div class="county-map-tools"><button type="button" data-action="county-map-reset" aria-label="回到全台地圖">↺ 全台</button><button type="button" data-action="county-map-zoom-in" aria-label="放大地圖">＋</button><button type="button" data-action="county-map-zoom-out" aria-label="縮小地圖">−</button></div>
+      <span class="county-map-tip">點選縣市 · 爪爪幫你放大</span>
+      </div>
+      <div class="county-machine-bottom"><span aria-hidden="true">✦</span> 把好運，夾回你的城市 <span aria-hidden="true">✦</span></div>
+    </div>
+    <div class="county-selection" role="status" aria-live="polite">${county ? `已選擇：${escapeHtml(county)}` : '先點地圖上的縣市，爪爪就會出發'}</div>
+    <div class="county-confirm" hidden><p class="county-confirm-hint">已放大這一區，可再點選周邊縣市</p><button type="button" class="btn btn-primary btn-block" data-action="confirm-signup-county">確認這個縣市</button></div>
     <button type="button" class="btn btn-primary btn-block" data-action="continue-signup" ${county ? '' : 'disabled'}>下一步：填寫會員資料 →</button>
     <button type="button" class="btn btn-light btn-block" data-action="cancel-signup">取消</button>
     <p class="note map-credit">縣市界線：內政部圖資／taiwan-atlas（MIT）。離島以分區方式呈現。</p>
   </section>`;
 }
 
-function selectSignupCounty(el) {
-  const pending = state.pendingSignup;
-  if (!pending || !TAIWAN_COUNTIES.includes(el.dataset.county)) return;
-  pending.county = el.dataset.county;
-  // 原地更新，避免每次選擇都重畫地圖或造成手機頁面跳動。
-  document.querySelectorAll('[data-action="select-county"]').forEach(node => {
-    const selected = node.dataset.county === pending.county;
+function countyZoomBox(box, minimumWidth = 160) {
+  // 留下鄰近縣市，讓第一次點到的區域能在放大後精準重選。
+  const width = Math.min(460, Math.max(minimumWidth, box.width * 1.5, box.height * 1.5 * 460 / 620));
+  const height = width * 620 / 460;
+  return [Math.max(0, Math.min(460 - width, box.x + box.width / 2 - width / 2)),
+    Math.max(0, Math.min(620 - height, box.y + box.height / 2 - height / 2)), width, height];
+}
+
+function stopCountyMapAnimation() {
+  countyMapAnimation++;
+  cancelAnimationFrame(countyMapFrame);
+  clearTimeout(countyMapTimer);
+}
+
+function animateCountyView(map, target, onFinish = () => {}) {
+  cancelAnimationFrame(countyMapFrame);
+  const from = map.getAttribute('viewBox').split(/\s+/).map(Number);
+  const start = performance.now();
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const frame = now => {
+    if (!map.isConnected) return;
+    const progress = reducedMotion ? 1 : Math.min(1, (now - start) / 620);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const view = target.map((value, i) => from[i] + (value - from[i]) * eased);
+    map.setAttribute('viewBox', view.join(' '));
+    map.style.setProperty('--map-label-scale', String(view[2] / 460));
+    if (progress < 1) countyMapFrame = requestAnimationFrame(frame);
+    else onFinish();
+  };
+  countyMapFrame = requestAnimationFrame(frame);
+}
+
+function highlightSignupCounty(picker, county) {
+  picker.querySelectorAll('[data-action="select-county"]').forEach(node => {
+    const selected = node.dataset.county === county;
     node.classList.toggle('is-selected', selected);
     node.setAttribute('aria-pressed', String(selected));
   });
-  $('.county-selection').textContent = `已選擇：${pending.county}`;
-  $('[data-action="continue-signup"]').disabled = false;
+}
+
+function selectSignupCounty(el) {
+  const pending = state.pendingSignup;
+  if (!pending || !TAIWAN_COUNTIES.includes(el.dataset.county)) return;
+  const picker = el.closest('.county-picker');
+  const machine = picker.querySelector('.county-machine');
+  const map = picker.querySelector('.county-map');
+  const region = [...map.querySelectorAll('.county-region')].find(node => node.dataset.county === el.dataset.county);
+  const showCandidate = () => {
+    if (!picker.isConnected || state.pendingSignup !== pending) return;
+    machine.dataset.mapStage = 'focused';
+    picker.querySelector('.county-selection').textContent = `這裡是 ${pending.mapCandidate}`;
+    const confirm = picker.querySelector('.county-confirm');
+    confirm.hidden = false;
+    confirm.querySelector('button').textContent = `確認選擇 ${pending.mapCandidate}`;
+    picker.querySelector('.county-map-tip').textContent = '再點縣市可微調 · 確認後繼續';
+  };
+  const focused = machine.dataset.mapStage === 'focused';
+  stopCountyMapAnimation();
+  const run = countyMapAnimation;
+  pending.mapCandidate = el.dataset.county;
+  pending.county = ''; // 尚未確認的候選縣市不得送進註冊表單。
+  highlightSignupCounty(picker, pending.mapCandidate);
+  picker.querySelector('[data-action="continue-signup"]').disabled = true;
+  picker.querySelector('.county-confirm').hidden = true;
+  const claw = picker.querySelector('.county-claw');
+  claw.classList.remove('is-catching');
+  if (focused) { showCandidate(); return; }
+  const box = region.getBBox();
+  const anchor = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  claw.setAttribute('transform', `translate(${anchor.x} 0)`);
+  claw.style.setProperty('--claw-drop', `${Math.max(28, anchor.y - 18)}px`);
+  // 重新觸發 CSS 動畫；快速改點時取消前一個候選，避免舊計時器覆蓋新選擇。
+  void claw.getBoundingClientRect();
+  claw.classList.add('is-catching');
+  machine.dataset.mapStage = 'catching';
+  picker.querySelector('.county-selection').textContent = `好運爪爪正在抓取 ${pending.mapCandidate}…`;
+  picker.querySelector('.county-map-tip').textContent = '抓到了！準備靠近看看';
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  countyMapTimer = setTimeout(() => {
+    if (run !== countyMapAnimation || !map.isConnected || state.pendingSignup !== pending) return;
+    claw.classList.remove('is-catching');
+    machine.dataset.mapStage = 'zooming';
+    animateCountyView(map, countyZoomBox(box), () => {
+      if (run === countyMapAnimation) showCandidate();
+    });
+  }, reducedMotion ? 0 : 1100);
+}
+
+function confirmSignupCounty() {
+  const pending = state.pendingSignup;
+  const picker = $('.county-picker');
+  if (!pending || !picker || picker.querySelector('.county-machine').dataset.mapStage !== 'focused' || !TAIWAN_COUNTIES.includes(pending.mapCandidate)) return;
+  pending.county = pending.mapCandidate;
+  picker.querySelector('.county-selection').textContent = `已選擇：${pending.county}`;
+  picker.querySelector('.county-confirm').hidden = true;
+  const next = picker.querySelector('[data-action="continue-signup"]');
+  next.disabled = false;
+  next.focus({ preventScroll: true });
+}
+
+function resetSignupCountyMap() {
+  const picker = $('.county-picker');
+  if (!picker || !state.pendingSignup) return;
+  stopCountyMapAnimation();
+  const machine = picker.querySelector('.county-machine');
+  machine.dataset.mapStage = 'overview';
+  picker.querySelector('.county-claw').classList.remove('is-catching');
+  picker.querySelector('.county-confirm').hidden = true;
+  state.pendingSignup.mapCandidate = '';
+  state.pendingSignup.county = '';
+  highlightSignupCounty(picker, '');
+  picker.querySelector('[data-action="continue-signup"]').disabled = true;
+  picker.querySelector('.county-selection').textContent = '重新點選你的所在縣市';
+  picker.querySelector('.county-map-tip').textContent = '點選縣市 · 爪爪幫你放大';
+  animateCountyView(picker.querySelector('.county-map'), [0, 0, 460, 620]);
+}
+
+function zoomSignupCountyMap(factor) {
+  const picker = $('.county-picker');
+  if (!picker || ['catching', 'zooming'].includes(picker.querySelector('.county-machine').dataset.mapStage)) return;
+  const map = picker.querySelector('.county-map');
+  const [x, y, width, height] = map.getAttribute('viewBox').split(/\s+/).map(Number);
+  animateCountyView(map, countyZoomBox({ x: x + width / 2, y: y + height / 2, width: 0, height: 0 }, Math.max(65, Math.min(460, width * factor))));
 }
 
 function renderSignup(pending) {
@@ -1928,8 +2070,13 @@ const ACTIONS = {
   'sign-in': signIn,
   'cancel-signup': cancelSignup,
   'select-county': selectSignupCounty,
+  'confirm-signup-county': confirmSignupCounty,
+  'county-map-reset': resetSignupCountyMap,
+  'county-map-zoom-in': () => zoomSignupCountyMap(.7),
+  'county-map-zoom-out': () => zoomSignupCountyMap(1.4),
   'continue-signup': () => {
     if (!TAIWAN_COUNTIES.includes(state.pendingSignup?.county)) return;
+    stopCountyMapAnimation();
     state.pendingSignup.detailsStep = true;
     renderMember();
     $('#page-member').scrollIntoView({ block: 'start' });
@@ -1962,7 +2109,7 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.county-region')) {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.county-region, .county-map-name')) {
     e.preventDefault();
     selectSignupCounty(e.target);
   }

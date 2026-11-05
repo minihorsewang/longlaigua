@@ -1043,18 +1043,47 @@ body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hid
 }
 /* 新會員兩步註冊；地圖使用本機 SVG 界線，無需手機定位權限。 */
 .signup-step { color: #b36b43; font-weight: 700; margin: 20px 0 8px; letter-spacing: .06em; }
-.county-map-wrap { background: #fbf1e4; border: 1px solid #e8d3bd; border-radius: 24px; margin: 20px 0 14px; overflow: hidden; }
-.county-map { width: 100%; max-height: 450px; display: block; }
-.county-region { fill: #e6c7a4; stroke: #fff9f0; stroke-width: 1.2; cursor: pointer; transition: fill .15s; fill-rule: evenodd; }
-.county-region:hover, .county-region:focus { fill: #cf8c5e; outline: none; stroke: #73472e; stroke-width: 2; }
-.county-region.is-selected { fill: #b65f35; stroke: #73472e; stroke-width: 2; }
-.county-map-label { font-size: 16px; fill: #7f6654; pointer-events: none; }
-.county-selection { font-weight: 700; color: #92502e; padding: 12px; background: #fbf1e4; border-radius: 12px; text-align: center; }
-.county-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 16px 0 24px; }
-.county-option { min-height: 44px; padding: 8px 2px; border: 1px solid #dec9b6; border-radius: 10px; color: #634a3a; background: #fffdfa; font: inherit; font-size: 14px; cursor: pointer; }
-.county-option.is-selected { color: #fff; background: #b65f35; border-color: #b65f35; }
-.county-option:focus-visible { outline: 3px solid #d58b58; outline-offset: 2px; }
+.county-machine { border: 2px solid #aa6948; border-radius: 24px; margin: 24px 0 18px; overflow: hidden; box-shadow: 0 7px 0 #e2c5a9, 0 15px 30px #98643b15; background: #fff8eb; }
+.county-machine-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #b96842; color: #fff4df; padding: 13px 15px; font: 700 10px/1.4 sans-serif; letter-spacing: .14em; }
+.machine-lights { color: #ffda89; font-size: 10px; white-space: nowrap; }
+.county-map-wrap { position: relative; background: radial-gradient(ellipse at 60% 45%, #fffdf5, #f4e7d4); overflow: hidden; }
+.county-map { width: 100%; height: auto; max-height: 490px; display: block; overflow: hidden; }
+.county-region { fill: #e8cda4; stroke: #fffaf0; stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: pointer; transition: fill .2s; fill-rule: evenodd; }
+.county-region:hover, .county-region:focus { fill: #d39666; outline: none; stroke: #995733; stroke-width: 2; }
+.county-region.is-selected { fill: #c87747; stroke: #8b492a; stroke-width: 2; }
+.county-map-name { cursor: pointer; }
+.county-map-label-content { transform: scale(var(--map-label-scale, 1)); }
+.county-machine[data-map-stage="focused"] .county-map-label-content { transform: scale(calc(var(--map-label-scale, 1) * 1.35)); }
+.county-map-name rect { fill: #fffdf2; fill-opacity: .9; stroke: #cbb293; stroke-width: .65; }
+.county-map-name text { fill: #75523a; font: 700 14px sans-serif; pointer-events: none; }
+.county-map-name:hover rect, .county-map-name:focus rect, .county-map-name.is-selected rect { fill: #9d5836; stroke: #9d5836; }
+.county-map-name:hover text, .county-map-name:focus text, .county-map-name.is-selected text { fill: #fff8e9; }
+.county-map-name:focus { outline: none; }
+.county-map-tools { position: absolute; right: 12px; bottom: 44px; display: flex; flex-direction: column; gap: 7px; }
+.county-map-tools button { min-width: 44px; height: 44px; padding: 0 8px; background: #fffaf0ee; border: 1px solid #d4b997; border-radius: 13px; color: #855335; font-size: 20px; box-shadow: 0 3px 9px #75523a13; cursor: pointer; }
+.county-map-tools button:first-child { font-size: 12px; font-weight: 700; }
+.county-map-tools button:focus-visible { outline: 3px solid #d28b58; outline-offset: 2px; }
+.county-map-tip { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 20px); width: max-content; padding: 7px 12px; border-radius: 20px; background: #fffaf0e8; color: #957054; font-size: 11px; pointer-events: none; }
+.county-machine-bottom { display: flex; justify-content: space-around; padding: 12px 10px; border-top: 1px solid #ddc3a3; background: #f5dfbe; color: #925f3c; font-size: 12px; letter-spacing: .07em; }
+.county-selection { font-size: 18px; font-weight: 700; color: #92502e; padding: 14px; background: #fbf1e4; border-radius: 14px; text-align: center; margin: 16px 0; }
+.county-confirm-hint { font-size: 12px; color: #99775e; margin: 0 0 12px; text-align: center; }
+.county-confirm { margin-bottom: 12px; }
+.county-claw { opacity: 0; }
+.county-claw.is-catching { opacity: 1; }
+.claw-cable { stroke: #6d503d; stroke-width: 3; }
+.claw-head { fill: #d39854; stroke: #704d32; stroke-width: 2; }
+.claw-finger path, .claw-middle { fill: none; stroke: #8d7561; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.claw-finger-left { transform-origin: -11px -7px; }
+.claw-finger-right { transform-origin: 11px -7px; }
+.is-catching .county-claw-carriage { animation: county-claw-drop 1.1s cubic-bezier(.4,0,.2,1) both; }
+.is-catching .claw-finger-left { animation: county-claw-close-left 1.1s both; }
+.is-catching .claw-finger-right { animation: county-claw-close-right 1.1s both; }
+@keyframes county-claw-drop { 0% { transform: translateY(-90px); } 45%, 72% { transform: translateY(var(--claw-drop)); } 100% { transform: translateY(-90px); } }
+@keyframes county-claw-close-left { 0%, 42% { transform: rotate(22deg); } 63%, 100% { transform: rotate(-16deg); } }
+@keyframes county-claw-close-right { 0%, 42% { transform: rotate(-22deg); } 63%, 100% { transform: rotate(16deg); } }
+.county-machine[data-map-stage="catching"] .county-region.is-selected { animation: county-region-lift 1.1s ease-in-out both; }
+@keyframes county-region-lift { 0%, 63% { transform: translateY(0); } 82% { transform: translateY(-14px); } 100% { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .is-catching .county-claw-carriage, .is-catching .claw-finger, .county-machine[data-map-stage="catching"] .county-region.is-selected { animation: none; } .county-claw { display: none; } .county-region { transition: none; } }
 .signup-county { padding: 12px; border-radius: 12px; background: #fbf1e4; margin: 16px 0; }
 .map-credit { font-size: 11px; margin-top: 14px; }
 .county-picker > .btn + .btn { margin-top: 10px; }
-@media (max-width: 380px) { .county-options { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

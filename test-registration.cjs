@@ -17,7 +17,16 @@ assert.match(run('renderSignup({name:"測試"})'), /下一步：填寫會員資�
 assert.doesNotMatch(run('renderSignup({name:"測試"})'), /id="signup-form"/);
 assert.match(run('renderSignup({name:"測試",county:"臺北市"})'), /data-action="continue-signup" >/);
 assert.match(run('renderSignup({name:"測試",county:"臺北市",detailsStep:true})'), /id="signup-form"/);
-assert.match(run('renderSignup({name:"測試",county:"不存在",detailsStep:true})'), /請選擇你的所在縣市/);
+assert.match(run('renderSignup({name:"測試",county:"不存在",detailsStep:true})'), /先點地圖上的縣市/);
+assert.doesNotMatch(run('renderSignup({name:"測試"})'), /county-options|county-option"/);
+assert.equal(run('COUNTY_MAP_LABELS.length'), 22);
+assert.ok(run('TAIWAN_COUNTIES.every(name => COUNTY_MAP_LABELS.some(label => label[0] === name))'));
+for (const box of [{x:360,y:20,width:18,height:25},{x:430,y:570,width:10,height:20},{x:20,y:40,width:100,height:80}]) {
+  context.box = box;
+  const [x,y,w,h] = run('countyZoomBox(box)');
+  assert.ok(x >= 0 && y >= 0 && x+w <= 460.001 && y+h <= 620.001);
+  assert.ok(w < 460 && w >= 160);
+}
 assert.match(run('renderSignup({name:"測試",county:"臺北市",detailsStep:true,draft:{name:"<script>",phone:"0912345678"}})'), /&lt;script&gt;/);
 assert.match(run('renderSignup({name:"測試",county:"臺北市",detailsStep:true,draft:{phone:"0912345678"}})'), /value="0912345678"/);
 
@@ -62,18 +71,23 @@ assert.equal(headerWrite.length,1);
 headers[10]='其他用途';headerWrite=[];
 assert.throws(()=>vm.runInContext('originalMemberSheet()',ctx),/欄位不符/);
 assert.equal(headerWrite.length,0);
-console.log('通過：22 縣市、兩步分流、非法縣市拒絕、草稿保留、文字轉義、K 欄儲存、舊會員相容；未呼叫正式 API。');
+console.log('通過：22 縣市及地圖標籤、縮放邊界、移除方格、兩步分流、非法縣市拒絕、草稿保留、文字轉義、K 欄儲存、舊會員相容；未呼叫正式 API。');
 
 // 可本機檢視的獨立測試頁；不載入登入憑證、不連正式會員 API。
 if (process.argv.includes('--preview')) {
-  const ui = source.slice(source.indexOf('const TAIWAN_COUNTIES ='), source.indexOf('let memberEditing ='));
+  const fullMotion = process.argv.includes('--full-motion');
+  let ui = source.slice(source.indexOf('const TAIWAN_COUNTIES ='), source.indexOf('let memberEditing ='));
+  // 僅測試頁模擬一般動態偏好，不改正式網站或作業系統設定。
+  if (fullMotion) ui = ui.replaceAll("window.matchMedia('(prefers-reduced-motion: reduce)').matches", 'false');
+  const motionStyle = fullMotion ? '<style>.county-picker .county-claw{display:inline}.county-picker .is-catching .county-claw-carriage{animation:county-claw-drop 1.1s cubic-bezier(.4,0,.2,1) both}.county-picker .is-catching .claw-finger-left{animation:county-claw-close-left 1.1s both}.county-picker .is-catching .claw-finger-right{animation:county-claw-close-right 1.1s both}.county-picker [data-map-stage="catching"] .county-region.is-selected{animation:county-region-lift 1.1s ease-in-out both}</style>' : '';
   const escape = `const LINE_ICON='';const escapeHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));`;
-  fs.writeFileSync('registration-preview.html', `<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>會員註冊地圖測試</title><link rel="stylesheet" href="style.css"><body><main id="page-member" style="max-width:430px;margin:20px auto;padding:12px"></main><script src="taiwan-counties.js"></script><script>${escape}
+  fs.writeFileSync('registration-preview.html', `<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>會員註冊地圖測試</title><link rel="stylesheet" href="style.css">${motionStyle}<body><main id="page-member" style="max-width:430px;margin:20px auto;padding:12px"></main><script src="taiwan-counties.js"></script><script>${escape}
   const state={pendingSignup:{name:'測試會員'}};
   const $=s=>document.querySelector(s);
   ${ui}
   function renderMember(){$('#page-member').innerHTML=renderSignup(state.pendingSignup);}
   renderMember();
-  document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;if(a==='select-county')selectSignupCounty(el);if(a==='continue-signup'){state.pendingSignup.detailsStep=true;renderMember();}if(a==='change-signup-county'){const f=$('#signup-form');state.pendingSignup.draft=Object.fromEntries(['name','phone','email','shopee'].map(k=>[k,f.elements[k].value]));state.pendingSignup.detailsStep=false;renderMember();}});
+  document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;if(a==='select-county')selectSignupCounty(el);if(a==='confirm-signup-county')confirmSignupCounty();if(a==='county-map-reset')resetSignupCountyMap();if(a==='county-map-zoom-in')zoomSignupCountyMap(.7);if(a==='county-map-zoom-out')zoomSignupCountyMap(1.4);if(a==='continue-signup'&&TAIWAN_COUNTIES.includes(state.pendingSignup.county)){stopCountyMapAnimation();state.pendingSignup.detailsStep=true;renderMember();}if(a==='change-signup-county'){const f=$('#signup-form');state.pendingSignup.draft=Object.fromEntries(['name','phone','email','shopee'].map(k=>[k,f.elements[k].value]));state.pendingSignup.detailsStep=false;renderMember();}if(a==='cancel-signup')location.reload();});
+  document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('.county-region,.county-map-name')){e.preventDefault();selectSignupCounty(e.target);}});
   document.addEventListener('submit',e=>{e.preventDefault();alert('此頁僅為預覽，不會建立會員');});</script></body></html>`);
 }
