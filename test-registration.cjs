@@ -13,9 +13,10 @@ const run = code => vm.runInContext(code, context);
 assert.equal(run('TAIWAN_COUNTY_PATHS.length'), 22);
 assert.equal(run('new Set(TAIWAN_COUNTY_PATHS.map(p=>p.name)).size'), 22);
 assert.ok(run('TAIWAN_COUNTIES.every(name=>TAIWAN_COUNTY_PATHS.some(p=>p.name===name))'));
-assert.match(run('renderSignup({name:"測試"})'), /下一步：填寫會員資料 →/);
+assert.match(run('renderSignup({name:"測試"})'), />確認抓取<\/button>/);
+assert.doesNotMatch(run('renderSignup({name:"測試"})'), /continue-signup|下一步：填寫會員資料/);
 assert.doesNotMatch(run('renderSignup({name:"測試"})'), /id="signup-form"/);
-assert.match(run('renderSignup({name:"測試",county:"臺北市"})'), /data-action="continue-signup" >/);
+assert.match(run('renderSignup({name:"測試",county:"臺北市"})'), /class="county-catch-result" hidden/);
 assert.match(run('renderSignup({name:"測試",county:"臺北市",detailsStep:true})'), /id="signup-form"/);
 assert.match(run('renderSignup({name:"測試",county:"不存在",detailsStep:true})'), /先點地圖上的縣市/);
 assert.doesNotMatch(run('renderSignup({name:"測試"})'), /county-options|county-option"/);
@@ -42,6 +43,14 @@ for (const box of [{width:18,height:25},{width:250,height:100},{width:30,height:
   assert.equal(fit.startScale, 2, '拾取時抵銷爪子縮放，圖形與原縣市大小一致');
   assert.ok(fit.endScale * box.width <= 44.001 && fit.endScale * box.height <= 24.001, '帶回左上時圖形應完整夾在爪子內');
 }
+context.overview = [0,-100,460,720];
+context.focused = [200,-35,160,250];
+assert.equal(run('countyCatchView(overview, focused, .1)[2]'),460);
+assert.ok(run('countyCatchView(overview, focused, .4)[2]') < 460, '下爪期間逐步放大');
+assert.equal(run('countyCatchView(overview, focused, .6)[2]'),160, '合爪時維持放大');
+assert.ok(run('countyCatchView(overview, focused, .8)[2]') > 160, '提起後逐步縮小');
+assert.equal(run('countyCatchView(overview, focused, 1)[2]'),460, '回左上後回到全台');
+assert.ok(run('countyCatchFocus({x:200,y:200,width:100,height:100},[180,100,100,160])[2]') < 100, '手動放大後下爪仍會靠近目標');
 assert.match(run('renderSignup({name:"測試",county:"臺北市",detailsStep:true,draft:{name:"<script>",phone:"0912345678"}})'), /&lt;script&gt;/);
 assert.match(run('renderSignup({name:"測試",county:"臺北市",detailsStep:true,draft:{phone:"0912345678"}})'), /value="0912345678"/);
 
@@ -99,7 +108,7 @@ if (process.argv.includes('--preview')) {
   ${ui}
   function renderMember(){$('#page-member').innerHTML=renderSignup(state.pendingSignup);}
   renderMember();
-  document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;if(a==='select-county')selectSignupCounty(el);if(a==='confirm-signup-county')confirmSignupCounty();if(a==='replay-county-claw')replaySignupCountyClaw();if(a==='county-map-reset')resetSignupCountyMap();if(a==='county-map-zoom-in')zoomSignupCountyMap(.7);if(a==='county-map-zoom-out')zoomSignupCountyMap(1.4);if(a==='continue-signup'&&TAIWAN_COUNTIES.includes(state.pendingSignup.county)){stopCountyMapAnimation();state.pendingSignup.detailsStep=true;renderMember();}if(a==='change-signup-county'){const f=$('#signup-form');state.pendingSignup.draft=Object.fromEntries(['name','phone','email','shopee'].map(k=>[k,f.elements[k].value]));state.pendingSignup.detailsStep=false;renderMember();}if(a==='cancel-signup')location.reload();});
+  document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;if(a==='select-county')selectSignupCounty(el);if(a==='confirm-signup-county')confirmSignupCounty();if(a==='replay-county-claw')replaySignupCountyClaw();if(a==='county-map-reset')resetSignupCountyMap();if(a==='county-map-zoom-in')zoomSignupCountyMap(.7);if(a==='county-map-zoom-out')zoomSignupCountyMap(1.4);if(a==='change-signup-county'){const f=$('#signup-form');state.pendingSignup.draft=Object.fromEntries(['name','phone','email','shopee'].map(k=>[k,f.elements[k].value]));state.pendingSignup.detailsStep=false;renderMember();}if(a==='cancel-signup')location.reload();});
   document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('.county-region,.county-map-name')){e.preventDefault();selectSignupCounty(e.target);}});
   document.addEventListener('submit',e=>{e.preventDefault();alert('此頁僅為預覽，不會建立會員');});</script></body></html>`);
 }

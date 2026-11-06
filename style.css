@@ -1047,13 +1047,12 @@ body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hid
 .county-machine-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #b96842; color: #fff4df; padding: 13px 15px; font: 700 10px/1.4 sans-serif; letter-spacing: .14em; }
 .machine-lights { color: #ffda89; font-size: 10px; white-space: nowrap; }
 .county-map-wrap { position: relative; background: radial-gradient(ellipse at 60% 45%, #fffdf5, #f4e7d4); overflow: hidden; }
-.county-map { width: 100%; height: auto; max-height: 560px; display: block; overflow: hidden; }
+.county-map { width: 100%; height: auto; display: block; overflow: hidden; }
 .county-region { fill: #e8cda4; stroke: #fffaf0; stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: pointer; transition: fill .2s; fill-rule: evenodd; }
 .county-region:hover, .county-region:focus { fill: #d39666; outline: none; stroke: #995733; stroke-width: 2; }
 .county-region.is-selected { fill: #c87747; stroke: #8b492a; stroke-width: 2; }
 .county-map-name { cursor: pointer; }
 .county-map-label-content { transform: scale(var(--map-label-scale, 1)); }
-.county-machine[data-map-stage="focused"] .county-map-label-content { transform: scale(calc(var(--map-label-scale, 1) * 1.35)); }
 .county-map-name rect { fill: #fffdf2; fill-opacity: .9; stroke: #cbb293; stroke-width: .65; }
 .county-map-name text { fill: #75523a; font: 700 14px sans-serif; pointer-events: none; }
 .county-map-name:hover rect, .county-map-name:focus rect, .county-map-name.is-selected rect { fill: #9d5836; stroke: #9d5836; }
@@ -1066,8 +1065,12 @@ body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hid
 .county-map-tip { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 20px); width: max-content; padding: 7px 12px; border-radius: 20px; background: #fffaf0e8; color: #957054; font-size: 11px; pointer-events: none; }
 .county-machine-bottom { display: flex; justify-content: space-around; padding: 12px 10px; border-top: 1px solid #ddc3a3; background: #f5dfbe; color: #925f3c; font-size: 12px; letter-spacing: .07em; }
 .county-selection { font-size: 18px; font-weight: 700; color: #92502e; padding: 14px; background: #fbf1e4; border-radius: 14px; text-align: center; margin: 16px 0; }
-.county-confirm-hint { font-size: 12px; color: #99775e; margin: 0 0 12px; text-align: center; }
-.county-confirm { margin-bottom: 12px; }
+.county-catch-result { position: absolute; top: 8px; left: 28%; right: 12px; height: calc(13.8889% - 12px); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.county-catch-result[hidden] { display: none; }
+.county-catch-name { min-width: 0; color: #855335; }
+.county-catch-name small { display: block; font-size: 10px; line-height: 1.5; letter-spacing: .08em; }
+.county-held-city { display: block; font-size: clamp(14px, 4vw, 18px); line-height: 1.4; white-space: nowrap; }
+.county-catch-confirm { flex-shrink: 0; min-height: 44px; padding: 9px 12px; font-size: 14px; white-space: nowrap; border-radius: 13px; }
 .county-claw { opacity: 1; }
 .county-claw.is-catching { opacity: 1; }
 .county-region.is-carried { opacity: .22; }
