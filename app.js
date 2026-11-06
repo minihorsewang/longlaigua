@@ -1779,8 +1779,11 @@ function selectSignupCounty(el) {
     machine.dataset.mapStage = 'focused';
     picker.querySelector('.county-selection').textContent = `已夾住 ${pending.mapCandidate}，帶回左上角了`;
     picker.querySelector('.county-held-city').textContent = pending.mapCandidate;
-    picker.querySelector('.county-catch-result').hidden = false;
+    const result = picker.querySelector('.county-catch-result');
+    result.hidden = false;
     picker.querySelector('.county-map-tip').textContent = '確認抓取即可繼續，也可點地圖重選';
+    // 南部縣市可能在畫面下方；抓回左上後把結果帶入視野，避免確認鍵留在螢幕外。
+    result.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   };
   stopCountyMapAnimation();
   const run = countyMapAnimation;
