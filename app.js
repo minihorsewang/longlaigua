@@ -1604,12 +1604,8 @@ function renderCountyPicker(pending) {
   const county = TAIWAN_COUNTIES.includes(pending.county) ? pending.county : '';
   const paths = typeof TAIWAN_COUNTY_PATHS === 'undefined' ? [] : TAIWAN_COUNTY_PATHS;
   return `<section class="panel auth-box county-picker">
-    <span class="provider-badge provider-line">${LINE_ICON}已透過 LINE 驗證</span>
-    <p class="signup-step">步驟 1 / 2 · 選擇縣市</p>
-    <h1 class="page-title">夾起你的好運城市</h1>
-    <p class="page-sub">點一下你的所在地，讓好運爪爪帶你靠近</p>
     <div class="county-machine" data-map-stage="overview" style="--claw-duration:${COUNTY_CLAW_DURATION}ms">
-      <div class="county-machine-top"><span class="machine-lights" aria-hidden="true">● ● ●</span><span>LUCKY CITY CATCHER</span><span aria-hidden="true">✦</span></div>
+      <div class="county-machine-top"><span class="machine-lights" aria-hidden="true">● ● ●</span><h1 class="county-machine-title">步驟 1 / 2 · 選擇縣市</h1><span aria-hidden="true">✦</span></div>
       <div class="county-map-wrap"><svg class="county-map" viewBox="0 -100 460 720" aria-label="台灣縣市選擇地圖，點選後會放大，請再確認縣市">
       <defs><pattern id="county-ocean-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#ddc9b3" stroke-width=".5" opacity=".35"/></pattern></defs>
       <rect x="-1000" y="-1000" width="3000" height="3000" fill="url(#county-ocean-grid)" pointer-events="none"/>

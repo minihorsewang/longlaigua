@@ -1034,6 +1034,8 @@ body.cart-open .side-tab { opacity: 0; pointer-events: none; }
 .line-floating:hover { background: #056b30; }
 .line-floating:focus-visible { outline: 3px solid #183e2c; outline-offset: 4px; }
 body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hidden; }
+/* 只在選縣市地圖介面隱藏 LINE 浮動入口；離開地圖或進入資料表單後自動恢復。 */
+body:has(#page-member:not([hidden]) .county-picker) .line-floating { display: none; }
 /* 頁尾留出按鈕空間，避免蓋住最後一段文字。 */
 .site-footer { padding-bottom: calc(108px + env(safe-area-inset-bottom)); }
 @media (max-width: 600px) {
@@ -1043,8 +1045,11 @@ body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hid
 }
 /* 新會員兩步註冊；地圖使用本機 SVG 界線，無需手機定位權限。 */
 .signup-step { color: #b36b43; font-weight: 700; margin: 20px 0 8px; letter-spacing: .06em; }
+.county-picker { padding: 12px; }
+.county-picker .county-machine { margin-top: 0; }
 .county-machine { border: 2px solid #aa6948; border-radius: 24px; margin: 24px 0 18px; overflow: hidden; box-shadow: 0 7px 0 #e2c5a9, 0 15px 30px #98643b15; background: #fff8eb; }
 .county-machine-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #b96842; color: #fff4df; padding: 13px 15px; font: 700 10px/1.4 sans-serif; letter-spacing: .14em; }
+.county-machine-title { margin: 0; font: 700 clamp(14px, 3.6vw, 16px)/1.5 sans-serif; letter-spacing: .035em; color: inherit; white-space: nowrap; }
 .machine-lights { color: #ffda89; font-size: 10px; white-space: nowrap; }
 .county-map-wrap { position: relative; background: radial-gradient(ellipse at 60% 45%, #fffdf5, #f4e7d4); overflow: hidden; }
 .county-map { width: 100%; height: auto; display: block; overflow: hidden; }
