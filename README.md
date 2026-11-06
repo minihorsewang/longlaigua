@@ -516,3 +516,10 @@ python -m http.server 5173
 - 使用可見頁面與 county-picker 的 CSS 條件判斷，無須改動登入狀態或 LINE 設定；爪子動畫、同步縮放、持有圖形及確認抓取流程不變。
 - 修改 app.js、style.css、index.html、liff.html、README.md；無新增程式檔案。Apps Script、會員及訂單資料未修改。
 - 檢查：node --check app.js；node test-registration.cjs。手動驗收：會員地圖頂部只保留機台內的步驟標題；舊三段文字與英文標題應消失；LINE 浮動入口不遮地圖。切換商品頁應恢復入口，回會員地圖應隱藏。
+
+
+### 下爪位置對準縣市（2026-11-06，claw2）
+- 抓取放大時保留所選縣市的水平位置，不再一律移到中央。
+- 爪子先水平移至目標上方，再垂直下爪；保留提起縮圖、帶回左上與確認抓取。
+- 測試：依序點選基隆市、臺南市、金門縣，觀察爪子在不同水平位置下爪，放大期間目標不會左右滑走。
+- 自動檢查：node --check app.js、node test-registration.cjs；新增北中南與離島的縮放對位檢查，未呼叫正式會員 API。

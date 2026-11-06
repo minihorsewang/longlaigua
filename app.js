@@ -1689,10 +1689,15 @@ function countyCatchView(from, focused, progress) {
 }
 
 function countyCatchFocus(box, currentView) {
-  const focused = countyZoomBox(box);
-  if (focused[2] < currentView[2]) return focused;
-  // 使用者已手動放大時，仍向目標靠近，避免下爪反而拉遠。
-  return countyZoomBox({ x: box.x + box.width / 2, y: box.y + box.height / 2, width: 0, height: 0 }, Math.max(45, currentView[2] * .7));
+  let focused = countyZoomBox(box);
+  if (focused[2] >= currentView[2]) {
+    focused = countyZoomBox({ x: box.x + box.width / 2, y: box.y + box.height / 2, width: 0, height: 0 }, Math.max(45, currentView[2] * .7));
+  }
+  // 放大只靠近目標，不把目標左右移到中央；水平滑軌先對準，再垂直下爪。
+  const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const screenX = projectCountyPoint(center, currentView).x;
+  focused[0] = center.x - screenX * focused[2] / 460;
+  return focused;
 }
 
 function animateCountyView(map, target, onFinish = () => {}) {
@@ -1798,7 +1803,7 @@ function selectSignupCounty(el) {
   const { scale } = dock;
   const projected = projectCountyPoint({ x: box.x + box.width / 2, y: box.y + box.height / 2 }, focusedView);
   const anchor = {
-    x: Math.max(dock.x, Math.min(460 - 30 * scale, projected.x)),
+    x: projected.x,
     y: Math.max(20 * scale, Math.min(620 - 40 * scale, projected.y)),
   };
   claw.setAttribute('transform', `translate(${dock.x} ${dock.y}) scale(${scale})`);

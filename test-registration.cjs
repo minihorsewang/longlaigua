@@ -13,6 +13,17 @@ const run = code => vm.runInContext(code, context);
 assert.equal(run('TAIWAN_COUNTY_PATHS.length'), 22);
 assert.equal(run('new Set(TAIWAN_COUNTY_PATHS.map(p=>p.name)).size'), 22);
 assert.ok(run('TAIWAN_COUNTIES.every(name=>TAIWAN_COUNTY_PATHS.some(p=>p.name===name))'));
+context.overview = [0,-100,460,720];
+// 北、中、南與離島的水平位置在整段下爪放大期間都不得被移到中央。
+for (const box of [{x:350,y:30,width:15,height:15},{x:200,y:250,width:80,height:100},{x:140,y:470,width:60,height:80},{x:30,y:210,width:15,height:15}]) {
+  context.catchBox = box;
+  const x = run('projectCountyPoint({x:catchBox.x+catchBox.width/2,y:catchBox.y+catchBox.height/2},overview).x');
+  for (const progress of [.24,.35,.5,.61]) {
+    context.catchProgress = progress;
+    const actual = run('projectCountyPoint({x:catchBox.x+catchBox.width/2,y:catchBox.y+catchBox.height/2},countyCatchView(overview,countyCatchFocus(catchBox,overview),catchProgress)).x');
+    assert.ok(Math.abs(actual-x)<.000001, '放大時所選縣市必須留在爪子正下方');
+  }
+}
 assert.match(run('renderSignup({name:"測試"})'), />確認抓取<\/button>/);
 assert.doesNotMatch(run('renderSignup({name:"測試"})'), /continue-signup|下一步：填寫會員資料/);
 assert.doesNotMatch(run('renderSignup({name:"測試"})'), /id="signup-form"/);
@@ -112,3 +123,4 @@ if (process.argv.includes('--preview')) {
   document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('.county-region,.county-map-name')){e.preventDefault();selectSignupCounty(e.target);}});
   document.addEventListener('submit',e=>{e.preventDefault();alert('此頁僅為預覽，不會建立會員');});</script></body></html>`);
 }
+
