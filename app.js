@@ -1625,12 +1625,12 @@ function renderCountyPicker(pending) {
     </svg>
       <div class="county-catch-result" hidden aria-label="抓取結果"><div class="county-catch-name"><small>成功抓取</small><strong class="county-held-city"></strong></div><button type="button" class="btn btn-primary county-catch-confirm" data-action="confirm-signup-county">確認抓取</button></div>
       <div class="county-map-tools"><button type="button" data-action="county-map-reset" aria-label="回到全台地圖">↺ 全台</button><button type="button" data-action="county-map-zoom-in" aria-label="放大地圖">＋</button><button type="button" data-action="county-map-zoom-out" aria-label="縮小地圖">−</button></div>
-      <span class="county-map-tip">點選縣市 · 爪爪幫你放大</span>
+      <span class="county-map-tip" hidden>點選縣市 · 爪爪幫你放大</span>
       </div>
       <div class="county-machine-bottom"><span aria-hidden="true">✦</span> 把好運，夾回你的城市 <span aria-hidden="true">✦</span></div>
     </div>
-    <div class="county-selection" role="status" aria-live="polite">${county ? `已選擇：${escapeHtml(county)}` : '先點地圖上的縣市，爪爪就會出發'}</div>
-    <button type="button" class="county-replay" data-action="replay-county-claw" ${county ? '' : 'disabled'}>↻ 再看一次抓取動畫</button>
+    <div class="county-selection" hidden role="status" aria-live="polite">${county ? `已選擇：${escapeHtml(county)}` : '先點地圖上的縣市，爪爪就會出發'}</div>
+    <button type="button" class="county-replay" hidden data-action="replay-county-claw" ${county ? '' : 'disabled'}>↻ 再看一次抓取動畫</button>
     <button type="button" class="btn btn-light btn-block" data-action="cancel-signup">取消</button>
     <p class="note map-credit">縣市界線：內政部圖資／taiwan-atlas（MIT）。離島以分區方式呈現。</p>
   </section>`;
