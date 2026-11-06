@@ -1941,26 +1941,23 @@ function renderSignup(pending) {
   return `
     <div class="panel auth-box signup-map-form">
       <div class="signup-county-backdrop" aria-hidden="true">${countyBackdropSvg(pending.countyBackdrop)}</div>
-      <span class="provider-badge provider-line">${LINE_ICON}已透過 LINE 驗證</span>
-      <h1 class="page-title">完成會員註冊</h1>
       <p class="signup-step">步驟 2 / 2 · 填寫資料</p>
       <div class="signup-county">所在縣市：<strong>${escapeHtml(county)}</strong> <button type="button" class="btn btn-ghost btn-sm" data-action="change-signup-county">重新選擇</button></div>
-      <p class="page-sub">最後一步！請填寫以下資料，方便通知中獎與寄送獎品</p>
       <form id="signup-form" class="form">
-        <label class="field">姓名
+        <label class="field"><span class="signup-field-label">姓名<small>（必填）</small></span>
           <input name="name" required maxlength="20" autocomplete="name" value="${escapeHtml(pending.draft?.name ?? name)}">
         </label>
-        <label class="field">電話
+        <label class="field"><span class="signup-field-label">電話<small>（必填）</small></span>
           <input name="phone" type="tel" required pattern="09\\d{8}" maxlength="10" placeholder="0912345678"
             title="請輸入 09 開頭的 10 碼手機號碼" autocomplete="tel" value="${escapeHtml(pending.draft?.phone || '')}">
         </label>
-        <label class="field">Email
+        <label class="field"><span class="signup-field-label">Email<small>（必填）</small></span>
           <input name="email" type="email" required maxlength="100" placeholder="name@example.com" autocomplete="email" value="${escapeHtml(pending.draft?.email || '')}">
         </label>
-        <label class="field">蝦皮帳號<small class="optional">選填</small>
+        <label class="field"><span class="signup-field-label">蝦皮帳號<small>（選填）</small></span>
           <input name="shopee" maxlength="30" pattern="@?[A-Za-z0-9._]{3,30}" placeholder="例如 lucky_cat88" autocomplete="off"
             title="只能有英文、數字、底線、句點，3～30 個字" value="${escapeHtml(pending.draft?.shopee || '')}">
-          <small class="hint">有在蝦皮購買請填寫，蝦皮的消費才能參加每月排名。填寫後不能自行修改，請確認正確</small>
+          <small class="hint">有在蝦皮購買請務必填寫，才能參與活動</small>
         </label>
         <p class="form-error" id="signup-error" role="alert" hidden></p>
         <button class="btn btn-primary btn-block" type="submit">完成註冊</button>

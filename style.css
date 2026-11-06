@@ -1035,7 +1035,7 @@ body.cart-open .side-tab { opacity: 0; pointer-events: none; }
 .line-floating:focus-visible { outline: 3px solid #183e2c; outline-offset: 4px; }
 body.cart-open .line-floating, body.drawer-open .line-floating { visibility: hidden; }
 /* 只在選縣市地圖介面隱藏 LINE 浮動入口；離開地圖或進入資料表單後自動恢復。 */
-body:has(#page-member:not([hidden]) .county-picker) .line-floating { display: none; }
+body:has(#page-member:not([hidden]) :is(.county-picker, .signup-map-form)) .line-floating { display: none; }
 /* 頁尾留出按鈕空間，避免蓋住最後一段文字。 */
 .site-footer { padding-bottom: calc(108px + env(safe-area-inset-bottom)); }
 @media (max-width: 600px) {
@@ -1128,3 +1128,7 @@ body:has(#page-member:not([hidden]) .county-picker) .line-floating { display: no
 .signup-county-backdrop { position: absolute; inset: 0; z-index: -1; opacity: .16; pointer-events: none; }
 .signup-county-backdrop svg { width: 100%; height: 100%; fill: #c9804d; }
 .signup-map-form .field input { background: #fffefbea; }
+
+/* 欄位名稱與必填／選填放同一行，不讓表單的直向排列拆成兩行。 */
+.signup-field-label { display: flex; align-items: baseline; gap: 4px; }
+.signup-field-label small { color: var(--muted); font-size: .8rem; font-weight: 400; }
