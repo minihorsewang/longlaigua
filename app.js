@@ -1874,17 +1874,32 @@ async function confirmSignupCounty() {
   claw.classList.remove('has-payload');
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const valid = () => run === countyMapAnimation && picker.isConnected && state.pendingSignup === pending;
+  let nextPanel;
   try {
+    const dropDuration = reduced ? 100 : 520;
+    const expandDuration = reduced ? 120 : 900;
+    // 掉落時舊頁就開始淡出，不等放大結束才切頁。
+    picker.animate([{ opacity: 1 }, { opacity: .3 }], { duration: dropDuration, fill: 'forwards' });
     await overlay.animate([
       { transform: 'translateY(0) rotate(0deg)' },
       { transform: 'translateY(150px) rotate(8deg)' }
-    ], { duration: reduced ? 100 : 520, easing: 'cubic-bezier(.5,0,1,.6)', fill: 'forwards' }).finished;
+    ], { duration: dropDuration, easing: 'cubic-bezier(.5,0,1,.6)', fill: 'forwards' }).finished;
     if (!valid()) return;
-    const target = picker.getBoundingClientRect();
-    await overlay.animate([
+    // 提前放入真正的第二頁，與縣市放大同時顯現；過場期間不開放輸入。
+    const template = document.createElement('template');
+    template.innerHTML = renderSignup({ ...pending, county: pending.mapCandidate, detailsStep: true });
+    nextPanel = template.content.firstElementChild;
+    nextPanel.classList.add('signup-transition-preview');
+    nextPanel.inert = true;
+    picker.parentElement.classList.add('county-transition-host');
+    picker.parentElement.appendChild(nextPanel);
+    const target = nextPanel.getBoundingClientRect();
+    const nextFade = nextPanel.animate([{ opacity: 0 }, { opacity: 1 }], { duration: expandDuration, easing: 'ease-in-out', fill: 'forwards' });
+    const finishOldFade = picker.animate([{ opacity: .3 }, { opacity: 0 }], { duration: expandDuration, fill: 'forwards' });
+    await Promise.all([nextFade.finished, finishOldFade.finished, overlay.animate([
       { left: `${rect.left}px`, top: `${rect.top+150}px`, width: `${Math.max(1,rect.width)}px`, height: `${Math.max(1,rect.height)}px`, transform: 'rotate(8deg)', opacity: 1 },
-      { left: `${target.left}px`, top: `${Math.max(0,target.top)}px`, width: `${target.width}px`, height: `${Math.max(target.height,innerHeight)}px`, transform: 'rotate(0deg)', opacity: .2 }
-    ], { duration: reduced ? 120 : 780, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'forwards' }).finished;
+      { left: `${target.left}px`, top: `${target.top}px`, width: `${target.width}px`, height: `${Math.max(1,target.height)}px`, transform: 'rotate(0deg)', opacity: .16 }
+    ], { duration: expandDuration, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'forwards' }).finished]);
     if (!valid()) return;
     pending.county = pending.mapCandidate;
     pending.detailsStep = true;
@@ -1894,11 +1909,14 @@ async function confirmSignupCounty() {
   } catch (error) {
     // 離開畫面會取消過場；仍在原畫面時恢復確認，避免卡住。
     if (valid()) {
+      picker.getAnimations().forEach(animation => animation.cancel());
       machine.dataset.mapStage = 'focused';
       claw.classList.add('has-payload');
       picker.querySelector('.county-catch-confirm').disabled = false;
     }
   } finally {
+    nextPanel?.remove();
+    document.querySelector('.county-transition-host')?.classList.remove('county-transition-host');
     overlay.remove();
     claw.classList.remove('is-releasing');
   }

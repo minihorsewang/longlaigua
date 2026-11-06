@@ -1132,3 +1132,8 @@ body:has(#page-member:not([hidden]) :is(.county-picker, .signup-map-form)) .line
 /* 欄位名稱與必填／選填放同一行，不讓表單的直向排列拆成兩行。 */
 .signup-field-label { display: flex; align-items: baseline; gap: 4px; }
 .signup-field-label small { color: var(--muted); font-size: .8rem; font-weight: 400; }
+
+/* 掉落淡出舊頁，放大時同步顯現下一頁，避免最後一刻突然換頁。 */
+.county-transition-host { position: relative; }
+.signup-transition-preview { position: absolute; top: 0; left: 0; right: 0; opacity: 0; pointer-events: none; }
+.signup-transition-preview .signup-county-backdrop { opacity: 0; }
