@@ -1623,7 +1623,7 @@ function renderCountyPicker(pending) {
         <path class="claw-middle" d="M0 -4V20L-6 27"/>
       </g></g></g>
     </svg>
-      <div class="county-catch-result" hidden aria-label="抓取結果"><div class="county-catch-name"><small>成功抓取</small><strong class="county-held-city"></strong></div><button type="button" class="btn btn-primary county-catch-confirm" data-action="confirm-signup-county">確認抓取</button></div>
+      <div class="county-catch-result" hidden aria-label="抓取結果"><div class="county-catch-name"><strong class="county-held-city"></strong></div><button type="button" class="btn btn-primary county-catch-confirm" data-action="confirm-signup-county">確認抓取</button></div>
       <div class="county-map-tools"><button type="button" data-action="county-map-reset" aria-label="回到全台地圖">↺ 全台</button><button type="button" data-action="county-map-zoom-in" aria-label="放大地圖">＋</button><button type="button" data-action="county-map-zoom-out" aria-label="縮小地圖">−</button></div>
       <span class="county-map-tip" hidden>點選縣市 · 爪爪幫你放大</span>
       </div>

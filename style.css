@@ -1070,12 +1070,12 @@ body:has(#page-member:not([hidden]) .county-picker) .line-floating { display: no
 .county-map-tip { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 20px); width: max-content; padding: 7px 12px; border-radius: 20px; background: #fffaf0e8; color: #957054; font-size: 11px; pointer-events: none; }
 .county-machine-bottom { display: flex; justify-content: space-around; padding: 12px 10px; border-top: 1px solid #ddc3a3; background: #f5dfbe; color: #925f3c; font-size: 12px; letter-spacing: .07em; }
 .county-selection { font-size: 18px; font-weight: 700; color: #92502e; padding: 14px; background: #fbf1e4; border-radius: 14px; text-align: center; margin: 16px 0; }
-.county-catch-result { position: absolute; top: 8px; left: 28%; right: 12px; height: calc(13.8889% - 12px); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.county-catch-result { position: absolute; top: 8px; left: 0; right: 0; height: calc(13.8889% - 12px); display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; pointer-events: none; }
 .county-catch-result[hidden] { display: none; }
-.county-catch-name { min-width: 0; color: #855335; }
+.county-catch-name { position: absolute; top: calc(100% + 12px); left: 14.1304%; transform: translateX(-50%); color: #855335; padding: 4px 8px; border-radius: 12px; background: #fff9ed; }
 .county-catch-name small { display: block; font-size: 10px; line-height: 1.5; letter-spacing: .08em; }
 .county-held-city { display: block; font-size: clamp(14px, 4vw, 18px); line-height: 1.4; white-space: nowrap; }
-.county-catch-confirm { flex-shrink: 0; min-height: 44px; padding: 9px 12px; font-size: 14px; white-space: nowrap; border-radius: 13px; }
+.county-catch-confirm { pointer-events: auto; flex-shrink: 0; min-height: 44px; padding: 9px 12px; font-size: 14px; white-space: nowrap; border-radius: 13px; }
 .county-claw { opacity: 1; }
 .county-claw.is-catching { opacity: 1; }
 .county-region.is-carried { opacity: .22; }
