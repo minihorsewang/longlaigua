@@ -1651,6 +1651,7 @@ function stopCountyMapAnimation() {
   cancelAnimationFrame(countyMapFrame);
   clearTimeout(countyMapTimer);
   clearTimeout(countyPickupTimer);
+  document.querySelectorAll('.county-page-transition').forEach(node => node.remove());
   // 重選、回全台或離開註冊時，清除上次夾取的圖形與原地淡色標記。
   document.querySelectorAll('.county-region.is-carried').forEach(region => region.classList.remove('is-carried'));
   document.querySelectorAll('.county-claw.has-payload').forEach(claw => claw.classList.remove('has-payload'));
@@ -1769,7 +1770,7 @@ function prepareCountyPayload(claw, region, box, dock, anchor, drop, focusedView
 
 function selectSignupCounty(el) {
   const pending = state.pendingSignup;
-  if (!pending || !TAIWAN_COUNTIES.includes(el.dataset.county)) return;
+  if (!pending || !TAIWAN_COUNTIES.includes(el.dataset.county) || el.closest('.county-machine')?.dataset.mapStage === 'transitioning') return;
   const picker = el.closest('.county-picker');
   const machine = picker.querySelector('.county-machine');
   const map = picker.querySelector('.county-map');
@@ -1848,20 +1849,69 @@ function replaySignupCountyClaw() {
   }
 }
 
-function confirmSignupCounty() {
+// 使用同一個縣市輪廓串起掉落、展開及第二頁背景，不重新登入或送出資料。
+async function confirmSignupCounty() {
   const pending = state.pendingSignup;
   const picker = $('.county-picker');
   if (!pending || !picker || picker.querySelector('.county-machine').dataset.mapStage !== 'focused' || !TAIWAN_COUNTIES.includes(pending.mapCandidate) || !picker.querySelector('.county-claw.has-payload')) return;
-  pending.county = pending.mapCandidate;
-  pending.detailsStep = true;
-  stopCountyMapAnimation();
-  renderMember();
-  $('#page-member').scrollIntoView({ block: 'start' });
+  const machine = picker.querySelector('.county-machine');
+  machine.dataset.mapStage = 'transitioning'; // 鎖住連點及重新選擇。
+  picker.querySelector('.county-catch-confirm').disabled = true;
+  const run = countyMapAnimation;
+  const shape = picker.querySelector('.county-carried-shape');
+  const rect = shape.getBoundingClientRect();
+  const region = [...picker.querySelectorAll('.county-region')].find(node => node.dataset.county === pending.mapCandidate);
+  const box = region.getBBox();
+  pending.countyBackdrop = { path: region.getAttribute('d'), box: [box.x, box.y, box.width, box.height] };
+  const overlay = document.createElement('div');
+  overlay.className = 'county-page-transition';
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.innerHTML = countyBackdropSvg(pending.countyBackdrop);
+  Object.assign(overlay.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${Math.max(1, rect.width)}px`, height: `${Math.max(1, rect.height)}px` });
+  document.body.appendChild(overlay);
+  const claw = picker.querySelector('.county-claw');
+  claw.classList.add('is-releasing');
+  claw.classList.remove('has-payload');
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const valid = () => run === countyMapAnimation && picker.isConnected && state.pendingSignup === pending;
+  try {
+    await overlay.animate([
+      { transform: 'translateY(0) rotate(0deg)' },
+      { transform: 'translateY(150px) rotate(8deg)' }
+    ], { duration: reduced ? 100 : 520, easing: 'cubic-bezier(.5,0,1,.6)', fill: 'forwards' }).finished;
+    if (!valid()) return;
+    const target = picker.getBoundingClientRect();
+    await overlay.animate([
+      { left: `${rect.left}px`, top: `${rect.top+150}px`, width: `${Math.max(1,rect.width)}px`, height: `${Math.max(1,rect.height)}px`, transform: 'rotate(8deg)', opacity: 1 },
+      { left: `${target.left}px`, top: `${Math.max(0,target.top)}px`, width: `${target.width}px`, height: `${Math.max(target.height,innerHeight)}px`, transform: 'rotate(0deg)', opacity: .2 }
+    ], { duration: reduced ? 120 : 780, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'forwards' }).finished;
+    if (!valid()) return;
+    pending.county = pending.mapCandidate;
+    pending.detailsStep = true;
+    stopCountyMapAnimation();
+    renderMember();
+    $('#page-member').scrollIntoView({ block: 'start' });
+  } catch (error) {
+    // 離開畫面會取消過場；仍在原畫面時恢復確認，避免卡住。
+    if (valid()) {
+      machine.dataset.mapStage = 'focused';
+      claw.classList.add('has-payload');
+      picker.querySelector('.county-catch-confirm').disabled = false;
+    }
+  } finally {
+    overlay.remove();
+    claw.classList.remove('is-releasing');
+  }
+}
+
+function countyBackdropSvg(backdrop) {
+  if (!backdrop) return '';
+  return `<svg viewBox="${backdrop.box.join(' ')}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path d="${escapeHtml(backdrop.path)}" fill-rule="evenodd"/></svg>`;
 }
 
 function resetSignupCountyMap() {
   const picker = $('.county-picker');
-  if (!picker || !state.pendingSignup) return;
+  if (!picker || !state.pendingSignup || picker.querySelector('.county-machine').dataset.mapStage === 'transitioning') return;
   stopCountyMapAnimation();
   const machine = picker.querySelector('.county-machine');
   machine.dataset.mapStage = 'overview';
@@ -1879,7 +1929,7 @@ function resetSignupCountyMap() {
 
 function zoomSignupCountyMap(factor) {
   const picker = $('.county-picker');
-  if (!picker || ['catching', 'zooming'].includes(picker.querySelector('.county-machine').dataset.mapStage)) return;
+  if (!picker || ['catching', 'zooming', 'transitioning'].includes(picker.querySelector('.county-machine').dataset.mapStage)) return;
   const map = picker.querySelector('.county-map');
   const [x, y, width, height] = readCountyView(map);
   animateCountyView(map, countyZoomBox({ x: x + width / 2, y: y + (height + width * 100 / 460) / 2, width: 0, height: 0 }, Math.max(65, Math.min(460, width * factor))), () => parkCountyClaw(map));
@@ -1889,7 +1939,8 @@ function renderSignup(pending) {
   const { name, county } = pending;
   if (!TAIWAN_COUNTIES.includes(county) || !pending.detailsStep) return renderCountyPicker(pending);
   return `
-    <div class="panel auth-box">
+    <div class="panel auth-box signup-map-form">
+      <div class="signup-county-backdrop" aria-hidden="true">${countyBackdropSvg(pending.countyBackdrop)}</div>
       <span class="provider-badge provider-line">${LINE_ICON}已透過 LINE 驗證</span>
       <h1 class="page-title">完成會員註冊</h1>
       <p class="signup-step">步驟 2 / 2 · 填寫資料</p>

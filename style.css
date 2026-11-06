@@ -1117,3 +1117,14 @@ body:has(#page-member:not([hidden]) .county-picker) .line-floating { display: no
 .signup-county { padding: 12px; border-radius: 12px; background: #fbf1e4; margin: 16px 0; }
 .map-credit { font-size: 11px; margin-top: 14px; }
 .county-picker > .btn + .btn { margin-top: 10px; }
+
+/* 確認後縣市掉落並展開，表單承接相同輪廓。背景不攔截操作。 */
+.county-page-transition { position: fixed; z-index: 10000; pointer-events: none; }
+.county-page-transition svg { width: 100%; height: 100%; overflow: visible; fill: #c9804d; filter: drop-shadow(0 5px 12px #71482633); }
+.county-claw.is-releasing .claw-finger-left { transform: rotate(22deg); transition: transform .2s; }
+.county-claw.is-releasing .claw-finger-right { transform: rotate(-22deg); transition: transform .2s; }
+.county-machine[data-map-stage="transitioning"] .county-map-tools { pointer-events: none; }
+.signup-map-form { position: relative; isolation: isolate; overflow: hidden; background: #fffaf2; }
+.signup-county-backdrop { position: absolute; inset: 0; z-index: -1; opacity: .16; pointer-events: none; }
+.signup-county-backdrop svg { width: 100%; height: 100%; fill: #c9804d; }
+.signup-map-form .field input { background: #fffefbea; }
