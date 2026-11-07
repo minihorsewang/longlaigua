@@ -1137,3 +1137,6 @@ body:has(#page-member:not([hidden]) :is(.county-picker, .signup-map-form)) .line
 .county-transition-host { position: relative; }
 .signup-transition-preview { position: fixed; z-index: 49; margin: 0; opacity: 0; pointer-events: none; }
 .signup-transition-preview .signup-county-backdrop { opacity: 0; }
+
+/* 換頁縮短文件時停用瀏覽器自動保留舊捲動錨點，定位後即解除。 */
+html.county-scroll-settling, html.county-scroll-settling body { overflow-anchor: none; scroll-behavior: auto !important; }

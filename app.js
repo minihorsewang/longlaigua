@@ -1856,6 +1856,8 @@ async function confirmSignupCounty() {
   if (!pending || !picker || picker.querySelector('.county-machine').dataset.mapStage !== 'focused' || !TAIWAN_COUNTIES.includes(pending.mapCandidate) || !picker.querySelector('.county-claw.has-payload')) return;
   const machine = picker.querySelector('.county-machine');
   machine.dataset.mapStage = 'transitioning'; // 鎖住連點及重新選擇。
+  document.documentElement.classList.add('county-scroll-settling');
+  window.scrollTo({ top: window.scrollY, behavior: 'instant' }); // 停止上一段平滑捲動。
   picker.querySelector('.county-catch-confirm').disabled = true;
   const run = countyMapAnimation;
   const shape = picker.querySelector('.county-carried-shape');
@@ -1875,6 +1877,7 @@ async function confirmSignupCounty() {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const valid = () => run === countyMapAnimation && picker.isConnected && state.pendingSignup === pending;
   let nextPanel;
+  let completed = false;
   try {
     const dropDuration = reduced ? 100 : 520;
     const expandDuration = reduced ? 120 : 900;
@@ -1908,9 +1911,7 @@ async function confirmSignupCounty() {
     pending.detailsStep = true;
     stopCountyMapAnimation();
     renderMember();
-    const formPanel = $('#page-member .signup-map-form');
-    const formTop = window.scrollY + formPanel.getBoundingClientRect().top - signupFormViewportTop();
-    window.scrollTo({ top: Math.max(0, formTop), behavior: 'instant' });
+    completed = true;
   } catch (error) {
     // 離開畫面會取消過場；仍在原畫面時恢復確認，避免卡住。
     if (valid()) {
@@ -1924,7 +1925,31 @@ async function confirmSignupCounty() {
     document.querySelector('.county-transition-host')?.classList.remove('county-transition-host');
     overlay.remove();
     claw.classList.remove('is-releasing');
+    if (!completed) document.documentElement.classList.remove('county-scroll-settling');
   }
+  // 必須在舊地圖與固定過場圖層全部移除後，再校準位置。
+  if (completed) settleSignupFormPosition(pending);
+}
+
+function settleSignupFormPosition(pending) {
+  let stopped = false;
+  const events = ['touchstart', 'wheel', 'keydown'];
+  const cleanup = () => {
+    stopped = true;
+    document.documentElement.classList.remove('county-scroll-settling');
+    events.forEach(event => window.removeEventListener(event, cleanup));
+  };
+  events.forEach(event => window.addEventListener(event, cleanup, { passive: true, once: true }));
+  const align = () => {
+    const panel = $('#page-member:not([hidden]) .signup-map-form');
+    if (stopped || state.pendingSignup !== pending || !panel) return;
+    const top = window.scrollY + panel.getBoundingClientRect().top - signupFormViewportTop();
+    window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+  };
+  align();
+  // 手機 WebView 在換頁縮短文件後可能再次調整捲動；等版面穩定後重算。
+  requestAnimationFrame(() => { align(); requestAnimationFrame(align); });
+  setTimeout(() => { align(); cleanup(); }, 220);
 }
 
 function signupFormViewportTop() {
