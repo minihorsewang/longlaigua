@@ -1893,6 +1893,9 @@ async function confirmSignupCounty() {
     nextPanel.inert = true;
     picker.parentElement.classList.add('county-transition-host');
     picker.parentElement.appendChild(nextPanel);
+    // 過場表單從公告列下方淡入，與完成後定位一致，不沿用地圖的捲動位置。
+    const pickerBounds = picker.getBoundingClientRect();
+    Object.assign(nextPanel.style, { top: `${signupFormViewportTop()}px`, left: `${pickerBounds.left}px`, width: `${pickerBounds.width}px` });
     const target = nextPanel.getBoundingClientRect();
     const nextFade = nextPanel.animate([{ opacity: 0 }, { opacity: 1 }], { duration: expandDuration, easing: 'ease-in-out', fill: 'forwards' });
     const finishOldFade = picker.animate([{ opacity: .3 }, { opacity: 0 }], { duration: expandDuration, fill: 'forwards' });
@@ -1905,7 +1908,9 @@ async function confirmSignupCounty() {
     pending.detailsStep = true;
     stopCountyMapAnimation();
     renderMember();
-    $('#page-member').scrollIntoView({ block: 'start' });
+    const formPanel = $('#page-member .signup-map-form');
+    const formTop = window.scrollY + formPanel.getBoundingClientRect().top - signupFormViewportTop();
+    window.scrollTo({ top: Math.max(0, formTop), behavior: 'instant' });
   } catch (error) {
     // 離開畫面會取消過場；仍在原畫面時恢復確認，避免卡住。
     if (valid()) {
@@ -1920,6 +1925,11 @@ async function confirmSignupCounty() {
     overlay.remove();
     claw.classList.remove('is-releasing');
   }
+}
+
+function signupFormViewportTop() {
+  // 頁首包含 Logo、導覽與公告列；依實際高度計算，適用手機與桌機。
+  return Math.max(0, document.querySelector('.site-header')?.getBoundingClientRect().bottom || 0);
 }
 
 function countyBackdropSvg(backdrop) {

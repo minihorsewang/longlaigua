@@ -1135,5 +1135,5 @@ body:has(#page-member:not([hidden]) :is(.county-picker, .signup-map-form)) .line
 
 /* 掉落淡出舊頁，放大時同步顯現下一頁，避免最後一刻突然換頁。 */
 .county-transition-host { position: relative; }
-.signup-transition-preview { position: absolute; top: 0; left: 0; right: 0; opacity: 0; pointer-events: none; }
+.signup-transition-preview { position: fixed; z-index: 49; margin: 0; opacity: 0; pointer-events: none; }
 .signup-transition-preview .signup-county-backdrop { opacity: 0; }
