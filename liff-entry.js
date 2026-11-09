@@ -32,7 +32,10 @@ async function startLiffMember() {
     const idToken = liff.getIDToken();
     if (!idToken) throw new Error('未取得 LINE 身分證明，請確認 LIFF 已設定 openid 權限。');
     const params = new URLSearchParams(location.search);
-    const returnHash = ['order', 'pickup'].includes(params.get('target')) ? '#' + params.get('target') : '#member';
+    const drawCode = params.get('draw') || '';
+    if (/^[a-f0-9]{32}$/.test(drawCode)) shipmentDrawCode = drawCode;
+    const returnHash = shipmentDrawCode ? '#draw' :
+      ['order', 'pickup'].includes(params.get('target')) ? '#' + params.get('target') : '#member';
     // 跨瀏覽器僅帶入商品 ID 與數量，檢查範圍，絕不採用網址傳來的價格。
     const rawCart = params.get('cart');
     if (rawCart && rawCart.length <= 6000) {
@@ -50,12 +53,12 @@ async function startLiffMember() {
       } catch { /* 錯誤購物車參數不影響登入，不覆寫原購物車。 */ }
     }
     const result = await callApi({ action: 'liffLogin', idToken });
-    // 不保存 ID token；換成既有後端憑證後沿用原本的會員畫面。
-    history.replaceState(null, '', location.pathname + '#member');
+    // 保留抽獎碼供重整續接，登入憑證不留在網址。
+    history.replaceState(null, '', location.pathname + (shipmentDrawCode ? '?draw=' + shipmentDrawCode : '') + '#member');
     state.authBusy = false;
     if (result.needSignup) {
       state.pendingSignup = { ticket: result.ticket, name: result.lineName, returnHash };
-      route();
+      goAfterLogin(returnHash);
     } else {
       setSession(result);
       goAfterLogin(returnHash);

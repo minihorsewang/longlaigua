@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font: 16px sans-serif; text-align: center; color: #201810; margin: 20px; }
+    #qr svg { width: 215px; height: 215px; }
+    input { box-sizing: border-box; width: 100%; margin: 10px 0; }
+    button { margin-top: 8px; padding: 8px 16px; cursor: pointer; }
+    @media print { .screen-only { display: none; } }
+  </style>
+</head>
+<body>
+  <h2>龍來刮｜出貨抽獎</h2>
+  <p>出貨單號 <?= reference ?></p>
+  <div id="qr"></div>
+  <p>掃描 QR Code，開啟 LINE 抽獎。</p>
+  <div class="screen-only">
+    <input id="draw-link" aria-label="抽獎連結" readonly value="<?= link ?>">
+    <button type="button" id="print">列印 QR Code</button>
+    <p>每張碼只放入對應包裹。</p>
+  </div>
+  <?!= HtmlService.createHtmlOutputFromFile('ShipmentQrLibrary').getContent() ?>
+  <script>
+    const drawUrl = document.getElementById('draw-link').value;
+    const code = qrcode(0, 'M');
+    code.addData(drawUrl);
+    code.make();
+    document.getElementById('qr').innerHTML = code.createSvgTag({ scalable: true });
+    document.getElementById('print').addEventListener('click', () => window.print());
+  </script>
+</body>
+</html>

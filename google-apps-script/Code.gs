@@ -372,10 +372,10 @@ function buildOrder(data) {
    Channel secret 只存在指令碼屬性，不會出現在網站或 GitHub。
    ========================================================= */
 
-const MEMBER_ACTIONS = { lineLogin, liffLogin, signup, updateMember, me, logout, myOrders, setShopee };
+const MEMBER_ACTIONS = { lineLogin, liffLogin, signup, updateMember, me, logout, myOrders, setShopee, shipmentPrize };
 
 function handleMember(data) {
-  const action = MEMBER_ACTIONS[data.action];
+  const action = Object.prototype.hasOwnProperty.call(MEMBER_ACTIONS, data.action) ? MEMBER_ACTIONS[data.action] : null;
   if (!action) return json({ ok: false, error: '不支援的操作' });
   try {
     return json(Object.assign({ ok: true }, action(data)));
@@ -785,6 +785,9 @@ function onOpen() {
     .addSeparator()
     .addItem('只匯入出貨檔（不計算）', 'importShipmentOnly')
     .addItem('使用說明', 'showRankingHelp')
+    .addSeparator()
+    .addItem('初始化出貨抽獎工作表', 'setupShipmentPrize')
+    .addItem('產生或重印出貨抽獎連結', 'issueShipmentPrizeLink')
     .addToUi();
 }
 
@@ -1093,4 +1096,117 @@ function publicRanking() {
   });
   return Object.keys(byMonth).sort().reverse().slice(0, RANK_PUBLIC_MONTHS)
     .map((month) => ({ month, entries: byMonth[month].sort((a, b) => a.rank - b.rank) }));
+}
+
+/* 出貨抽獎：每張出貨單一列；抽獎與領獎各只寫一次。 */
+const SHIPMENT_PRIZE_SHEET = '出貨抽獎與領獎';
+const SHIPMENT_PRIZE_POOL = '出貨獎項';
+const SHIPMENT_PRIZE_HEADERS = ['出貨單號', '抽獎碼', '發行時間', '抽獎時間', 'LINE ID', '獎品', '領獎單號', '會員編號', '領獎時間', '處理狀態'];
+const SHIPMENT_POOL_HEADERS = ['獎品名稱', '權重', '啟用'];
+const SHIPMENT_DRAW_LINK = 'https://liff.line.me/2011980723-3dySl95Q?draw=';
+
+function setupShipmentPrize() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  for (const [name, headers] of [[SHIPMENT_PRIZE_SHEET, SHIPMENT_PRIZE_HEADERS], [SHIPMENT_PRIZE_POOL, SHIPMENT_POOL_HEADERS]]) {
+    let sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      sheet = ss.insertSheet(name);
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sheet.setFrozenRows(1);
+    }
+    checkHeaders(sheet, headers);
+  }
+}
+
+function issueShipmentPrizeLink() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.prompt('產生出貨抽獎連結', '請輸入唯一出貨單號，例如 WEB-12345 或 SHOPEE-12345。相同單號會取回原連結。', ui.ButtonSet.OK_CANCEL);
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+  const reference = clean(response.getResponseText()).toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9_-]{0,79}$/.test(reference)) {
+    ui.alert('請使用 1 至 80 個英數、底線或連字號，並以英數開頭。');
+    return;
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  let code;
+  try {
+    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHIPMENT_PRIZE_SHEET);
+    checkHeaders(sheet, SHIPMENT_PRIZE_HEADERS);
+    const existing = sheet.getDataRange().getValues().slice(1).find(row => String(row[0]) === reference);
+    if (existing) {
+      code = String(existing[1]);
+    } else {
+      code = Utilities.getUuid().replace(/-/g, '');
+      sheet.appendRow([asText(reference), asText(code), new Date()]);
+      SpreadsheetApp.flush();
+    }
+  } finally {
+    lock.releaseLock();
+  }
+  if (!/^[a-f0-9]{32}$/.test(code)) throw new Error('抽獎碼欄位不正確，請檢查原工作表');
+  const template = HtmlService.createTemplateFromFile('ShipmentQr');
+  template.link = SHIPMENT_DRAW_LINK + code;
+  template.reference = reference;
+  ui.showModalDialog(template.evaluate().setWidth(450).setHeight(540), '出貨抽獎 QR Code');
+}
+
+function shipmentPrize(data) {
+  const code = clean(data.code);
+  const operation = data.operation;
+  if (!/^[a-f0-9]{32}$/.test(code) || !['status', 'draw', 'claim'].includes(operation)) fail('請掃描包裹內的有效抽獎碼');
+  // 新客用現有 LINE 驗證後發的註冊憑證，會員用既有登入憑證。
+  const ticket = data.ticket && CacheService.getScriptCache().get('signup:' + clean(data.ticket));
+  const lineId = data.token ? findSession(clean(data.token)) : ticket && JSON.parse(ticket).lineId;
+  if (!lineId) fail('LINE 驗證已逾時，請重新掃描包裹上的抽獎碼', { expired: true });
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(SHIPMENT_PRIZE_SHEET);
+    if (!sheet) fail('出貨抽獎尚未開放，請聯絡店家');
+    checkHeaders(sheet, SHIPMENT_PRIZE_HEADERS);
+    const rows = sheet.getDataRange().getValues().slice(1);
+    const index = rows.findIndex(row => String(row[1]) === code);
+    if (index < 0) fail('查不到此抽獎碼，請確認包裹上的連結');
+    const row = rows[index];
+    if (row[4] && row[4] !== lineId) fail('此抽獎碼已由其他 LINE 帳號使用');
+    if (operation === 'draw' && !row[4]) {
+      const prize = chooseShipmentPrize(ss);
+      sheet.getRange(index + 2, 4, 1, 3).setValues([[new Date(), asText(lineId), asText(prize)]]);
+      SpreadsheetApp.flush();
+      row[4] = lineId;
+      row[5] = prize;
+    }
+    if (operation === 'claim' && !row[6]) {
+      if (!row[5]) fail('請先完成抽獎');
+      const member = data.token && findMember(lineId);
+      if (!member || !member.row[8]) fail('請先完成會員註冊，再確認領獎');
+      row[6] = 'PR-' + Utilities.getUuid().toUpperCase();
+      row[9] = '待處理';
+      sheet.getRange(index + 2, 7, 1, 4).setValues([[row[6], asText(String(member.row[8])), new Date(), row[9]]]);
+      SpreadsheetApp.flush();
+    }
+    return { prize: String(row[5] || ''), claimId: String(row[6] || ''), status: String(row[9] || '') };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function chooseShipmentPrize(ss) {
+  const pool = ss.getSheetByName(SHIPMENT_PRIZE_POOL);
+  if (!pool) fail('店家尚未設定抽獎獎項');
+  checkHeaders(pool, SHIPMENT_POOL_HEADERS);
+  const prizes = pool.getDataRange().getValues().slice(1)
+    .map(([name, weight, enabled]) => ({ name: clean(name), weight: Number(weight), enabled }))
+    .filter(prize => prize.name && prize.name.length <= 100 && Number.isInteger(prize.weight) &&
+      prize.weight > 0 && prize.weight <= 1000000 && (prize.enabled === true || prize.enabled === '是'));
+  const total = prizes.reduce((sum, prize) => sum + prize.weight, 0);
+  if (!total) fail('店家尚未啟用抽獎獎項');
+  let pick = Math.floor(Math.random() * total);
+  for (const prize of prizes) {
+    pick -= prize.weight;
+    if (pick < 0) return prize.name;
+  }
 }

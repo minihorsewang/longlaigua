@@ -1323,10 +1323,12 @@ function consumeLineAttempt(returnedState) {
 }
 
 const CHECKOUT_PAGES = ['#order', '#pickup'];
+let shipmentDrawCode = '';
 
 // 登入或註冊完成後回到原本的頁面（只允許回到結帳頁，其他一律回會員頁）
 function goAfterLogin(returnHash) {
-  const target = CHECKOUT_PAGES.includes(returnHash) ? returnHash : '#member';
+  const target = returnHash === '#draw' && shipmentDrawCode ? '#draw' :
+    CHECKOUT_PAGES.includes(returnHash) ? returnHash : '#member';
   if (location.hash === target) route();
   else location.hash = target;
 }
@@ -2181,6 +2183,56 @@ function confirmShopee(shopee) {
    網址格式：#products、#products/cards、#products?q=關鍵字
    ========================================================= */
 
+function renderShipmentDraw() {
+  const page = $('#page-draw');
+  page.innerHTML = '<section class="panel auth-box"><h1 class="page-title">出貨抽獎</h1><div id="shipment-draw-content" aria-live="polite"></div></section>';
+  if (!shipmentDrawCode) {
+    $('#shipment-draw-content').textContent = '請掃描包裹內的抽獎 QR Code。';
+    return;
+  }
+  loadShipmentDraw('status');
+}
+
+async function loadShipmentDraw(operation, button) {
+  const content = $('#shipment-draw-content');
+  if (!content) return;
+  if (button) button.disabled = true;
+  const code = shipmentDrawCode;
+  const auth = state.pendingSignup ? { ticket: state.pendingSignup.ticket } : { token: state.sessionToken };
+  const message = document.createElement('p');
+  message.textContent = '處理中，請稍候…';
+  content.replaceChildren(message);
+  try {
+    const result = await callApi({ action: 'shipmentPrize', operation, code, ...auth });
+    if (!content.isConnected || code !== shipmentDrawCode) return;
+    if (result.claimId) {
+      content.innerHTML = '<p>已確認領取 <strong>' + escapeHtml(result.prize) +
+        '</strong></p><p>領獎單號：' + escapeHtml(result.claimId) +
+        '</p><p>處理狀態：' + escapeHtml(result.status) + '</p>';
+    } else if (result.prize) {
+      const action = state.pendingSignup
+        ? '<a class="btn btn-primary btn-block" href="#member">完成會員註冊，繼續領獎</a>'
+        : '<button type="button" class="btn btn-primary btn-block" data-action="claim-shipment-prize">確認領獎</button>';
+      content.innerHTML = '<p>你抽中了 <strong>' + escapeHtml(result.prize) + '</strong></p>' + action;
+    } else {
+      content.innerHTML = '<p>這張出貨抽獎碼可以使用。</p><button type="button" class="btn btn-primary btn-block" data-action="draw-shipment-prize">開始抽獎</button>';
+    }
+  } catch (err) {
+    if (!content.isConnected || code !== shipmentDrawCode) return;
+    message.textContent = err.message;
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'btn btn-light btn-block';
+    retry.textContent = err.expired ? '重新驗證 LINE' : '重新查詢結果';
+    if (err.expired) {
+      retry.onclick = () => { location.href = 'https://liff.line.me/' + encodeURIComponent(APP_LINE_CONFIG.liffId) + '?draw=' + encodeURIComponent(code); };
+    } else {
+      retry.dataset.action = 'retry-shipment-prize';
+    }
+    content.appendChild(retry);
+  }
+}
+
 const PAGES = {
   home: renderHome,
   events: renderEvents,
@@ -2190,6 +2242,7 @@ const PAGES = {
   order: renderOrder,
   pickup: renderPickup,
   member: renderMember,
+  draw: renderShipmentDraw,
 };
 
 /* ---------- 商品：從 Google 試算表「商品」工作表讀取 ---------- */
@@ -2277,6 +2330,9 @@ function route() {
 }
 
 const ACTIONS = {
+  'draw-shipment-prize': el => loadShipmentDraw('draw', el),
+  'claim-shipment-prize': el => loadShipmentDraw('claim', el),
+  'retry-shipment-prize': el => loadShipmentDraw('status', el),
   'add-to-cart': (el) => addToCart(el.dataset.id),
   'qty': (el) => changeQty(el.dataset.id, Number(el.dataset.delta)),
   'remove-from-cart': (el) => removeFromCart(el.dataset.id),
